@@ -2,6 +2,8 @@
 
 Learn how to build a ChatGPT app with this step-by-step tutorial! This todo list application demonstrates how to integrate with ChatGPT using the Model Context Protocol (MCP). You'll discover how to create MCP tools that ChatGPT can call, build a React widget that appears in ChatGPT's interface, and implement real-time synchronization between ChatGPT conversations and your app's UI.
 
+For the detailed step-by-step tutorial, you can read it [here](https://codeaholicguy.com/2025/10/11/how-to-create-a-chatgpt-app-using-mcp-model-context-protocol-step-by-step).
+
 ## Architecture
 
 ### MCP Server
