@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useOpenAiGlobal } from "./useOpenAiGlobal";
 
 export default function App() {
   const [tasks, setTasks] = useState([]);
   const [text, setText] = useState("");
+  const toolOutput = window.openai ? useOpenAiGlobal("toolOutput") : null;
 
   const fetchTasks = async () => {
     const res = await fetch("http://localhost:3000/tasks");
@@ -16,15 +18,16 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
+
+    await fetchTasks();
     setText("");
-    fetchTasks();
   };
 
   const completeTask = async (id) => {
     await fetch(`http://localhost:3000/tasks/${id}/complete`, {
       method: "POST",
     });
-    fetchTasks();
+    await fetchTasks();
   };
 
   const handleKeyPress = (e) => {
@@ -33,9 +36,15 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    fetchTasks();
+  useEffect(async () => {
+    await fetchTasks();
   }, []);
+
+  if (window.openai) {
+    useEffect(() => {
+      fetchTasks();
+    }, [toolOutput]);
+  }
 
   const completedCount = tasks.filter((t) => t.completed).length;
   const totalCount = tasks.length;

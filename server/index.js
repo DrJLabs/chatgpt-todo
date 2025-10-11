@@ -4,7 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from 'zod';
 import fs from 'fs';
-import path, { join } from 'path';
+import path from 'path';
 
 const createMcpServer = () => {
   const server = new McpServer({
@@ -26,9 +26,10 @@ const createMcpServer = () => {
     _meta: {
       "openai/outputTemplate": "ui://widget/chatgpt-app-todo.html",
       "openai/toolInvocation/invoking": "Creating task...",
-      "openai/toolInvocation/invoked": "Task created"
+      "openai/toolInvocation/invoked": "Task created",
+      "openai/widgetAccessible": true
     },
-  }, async ({ text }) => {
+  }, ({ text }) => {
     const newTask = { id: Date.now(), text, completed: false };
     tasks.push(newTask);
     return {
@@ -51,11 +52,11 @@ const createMcpServer = () => {
     },
     _meta: {
       "openai/outputTemplate": "ui://widget/chatgpt-app-todo.html",
-      // Optional status strings for nicer UX
       "openai/toolInvocation/invoking": "Getting tasks...",
-      "openai/toolInvocation/invoked": "Tasks sent"
+      "openai/toolInvocation/invoked": "Tasks sent",
+      "openai/widgetAccessible": true
     }
-  }, async () => {
+  }, () => {
     if (tasks.length === 0) {
       return {
         structuredContent: { tasks: [] },
@@ -87,9 +88,10 @@ const createMcpServer = () => {
     _meta: {
       "openai/outputTemplate": "ui://widget/chatgpt-app-todo.html",
       "openai/toolInvocation/invoking": "Completing task...",
-      "openai/toolInvocation/invoked": "Task completed"
+      "openai/toolInvocation/invoked": "Task completed",
+      "openai/widgetAccessible": true
     },
-  }, async ({ id }) => {
+  }, ({ id }) => {
     const task = tasks.find(t => t.id === id);
     if (task) task.completed = true;
     return {
@@ -105,7 +107,7 @@ const createMcpServer = () => {
     "chatgpt-app-todo-widget",
     "ui://widget/chatgpt-app-todo.html",
     {},
-    async () => ({
+    () => ({
       contents: [{
         uri: "ui://widget/chatgpt-app-todo.html",
         mimeType: "text/html+skybridge",
