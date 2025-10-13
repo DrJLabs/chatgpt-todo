@@ -34,7 +34,7 @@
    - Add `better-auth` (for shared helpers) and, if preferred, `better-fetch` for typed API calls.
 2. **Session verification middleware**
    - Create a module (e.g., `server/session.js`) that:
-     - Forwards incoming request cookies to `http://localhost:25000/api/auth/session` (or equivalent) using `fetch` with `credentials: 'include'`.
+     - Forwards incoming request cookies to `${process.env.AUTH_BASE_URL}/session` (or equivalent) using `fetch` with `credentials: 'include'`.
      - Alternatively reuses `auth.api.getSession` once we expose the central instance through a lightweight proxy module.
      - Caches successful session lookups per request to avoid duplicate round-trips.
    - Apply middleware to REST endpoints (`/tasks`, `/tasks/:id/complete`) and inside MCP tool handlers so each tool call checks `session.user`.
@@ -49,14 +49,14 @@
 5. **Error handling**
    - Return 401/403 responses when session validation fails; surface actionable errors in MCP tool results.
 6. **Configuration**
-   - Introduce environment variables in this repo (`AUTH_BASE_URL`, `TODO_API_BASE_URL`) so local/prod URLs are configurable.
+   - Introduce environment variables in this repo (`AUTH_BASE_URL` for the server, `VITE_AUTH_BASE_URL` for the Vite client, plus `TODO_API_BASE_URL`) so local/prod URLs are configurable.
 7. **Logging & observability**
    - Log failed validations (without leaking secrets) and include correlation ids from Better Auth responses when available.
 
 ## Phase 3 – Client Integration
 1. **Install client SDK**
    - Add `better-auth` client for React (`import { createAuthClient } from 'better-auth/react'`).
-   - Instantiate with `baseURL: process.env.AUTH_BASE_URL ?? 'http://localhost:25000/api/auth'`.
+   - Instantiate with `baseURL: import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:25000/api/auth'`.
 2. **Auth context/provider**
    - Create `client/src/authClient.js` exporting the configured client plus hooks (`useSession`, `signIn`, `signOut`).
    - Wrap `<App />` with a provider (or update component to call the hooks directly).
