@@ -39,9 +39,11 @@
      - Caches successful session lookups per request to avoid duplicate round-trips.
    - Apply middleware to REST endpoints (`/tasks`, `/tasks/:id/complete`) and inside MCP tool handlers so each tool call checks `session.user`.
 3. **Per-user task storage**
-   - Replace the global `tasks` array with a user-scoped store:
-     - Interim: in-memory `Map<userId, Task[]>` keyed by `session.user.id`.
-     - Long term: persist tasks in SQLite/Postgres with migrations (document follow-up).
+   - Replace the global `tasks` array with a user-scoped store backed by disk persistence:
+     - Add a lightweight SQLite database (e.g., `better-sqlite3`) at `server/data/tasks.db` with a `tasks` table keyed by `userId`.
+     - Wrap reads/writes behind a `TaskRepository` module that loads once on server boot and exposes per-user helpers (`listTasks(userId)`, `upsertTask(userId, task)`).
+     - Ensure repository methods run inside transactions so writes are durable and can be migrated to Postgres later with minimal changes.
+   - Capture a follow-up to productionize with a managed database (Postgres/MySQL) plus migrations when scaling beyond local development.
    - Update REST endpoints and MCP structured outputs to respect per-user data.
 4. **CORS & cookie forwarding**
    - Adjust Express CORS middleware to `origin: ['http://localhost:3000', /* prod */]`, `credentials: true`.
