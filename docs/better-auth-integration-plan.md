@@ -39,11 +39,11 @@
      - Caches successful session lookups per request to avoid duplicate round-trips.
    - Apply middleware to REST endpoints (`/tasks`, `/tasks/:id/complete`) and inside MCP tool handlers so each tool call checks `session.user`.
 3. **Per-user task storage**
-   - Replace the global `tasks` array with a user-scoped store backed by disk persistence:
-     - Add a lightweight SQLite database (e.g., `better-sqlite3`) at `server/data/tasks.db` with a `tasks` table keyed by `userId`.
+   - Replace the global `tasks` array with a user-scoped store that reuses the SQLite database the central Better Auth instance already maintains:
+     - Instead of provisioning a second database file, point the todo service at the existing connection string (shared `.env` variable) and add a `tasks` table keyed by `userId`.
      - Wrap reads/writes behind a `TaskRepository` module that loads once on server boot and exposes per-user helpers (`listTasks(userId)`, `upsertTask(userId, task)`).
-     - Ensure repository methods run inside transactions so writes are durable and can be migrated to Postgres later with minimal changes.
-   - Capture a follow-up to productionize with a managed database (Postgres/MySQL) plus migrations when scaling beyond local development.
+     - Keep repository methods transactional so the schema can migrate alongside the central auth schema (e.g., when moving both to Postgres) without changing application code.
+   - Document migration steps with the auth ops team before altering the shared schema, especially if multiple services will begin reading from the same database file.
    - Update REST endpoints and MCP structured outputs to respect per-user data.
 4. **CORS & cookie forwarding**
    - Adjust Express CORS middleware to `origin: ['http://localhost:3000', /* prod */]`, `credentials: true`.
@@ -93,6 +93,6 @@
 
 ## Open Questions & Follow-ups
 - Does the central Better Auth server expose a REST session introspection endpoint, or should this service host a thin proxy that imports the shared config?
-- Are we expected to migrate todo storage into the auth server’s database (shared) or keep it app-local?
+- Who owns the shared SQLite schema changes (auth team vs. app team) and what review process is required before adding the todo tables?
 - How will ChatGPT-hosted widgets handle Better Auth popups (do we need a separate sign-in portal exposed outside the widget)?
 - Production domain(s) and TLS termination details remain to be confirmed before finalizing cookie settings.
