@@ -60,3 +60,6 @@ coverage/
 # Optional eslint cache
 .eslintcache
 
+# Other tools
+bmad/
+.serena/
