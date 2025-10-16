@@ -5,8 +5,50 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
+import { requireSession } from './session.js';
+import { fetchMcpMetadata } from './mcpMetadata.js';
 
-const createMcpServer = () => {
+const PORT = process.env.PORT || 3000;
+const ENABLE_AUTH_GATE = (process.env.ENABLE_AUTH_GATE ?? 'true') !== 'false';
+const AUTH_MCP_METADATA_URL = process.env.AUTH_MCP_METADATA_URL || 'https://auth.onemainarmy.com/mcp';
+const TRUSTED_ORIGINS = (process.env.TRUSTED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowAllOrigins = TRUSTED_ORIGINS.length === 0;
+
+const tasksByUser = new Map();
+const legacyTasks = [];
+
+const getTasksForUser = (userId) => {
+  if (!tasksByUser.has(userId)) {
+    tasksByUser.set(userId, []);
+  }
+  return tasksByUser.get(userId);
+};
+
+const logAuthState = (req, event, extra = {}) => {
+  const authState = ENABLE_AUTH_GATE ? 'enforced' : 'bypassed';
+  const payload = {
+    route: req.path,
+    method: req.method,
+    authState,
+    userId: ENABLE_AUTH_GATE ? req.userId ?? null : null,
+    event,
+    ...extra,
+  };
+  console.info('[better-auth]', payload);
+};
+
+const getTaskStore = (userId) => {
+  if (!ENABLE_AUTH_GATE) {
+    return legacyTasks;
+  }
+  return getTasksForUser(userId);
+};
+
+const createMcpServer = (taskStore) => {
   const server = new McpServer({
     name: 'Todo List',
     version: '1.0.0',
@@ -31,7 +73,7 @@ const createMcpServer = () => {
     },
   }, ({ text }) => {
     const newTask = { id: Date.now(), text, completed: false };
-    tasks.push(newTask);
+    taskStore.push(newTask);
     return {
       structuredContent: newTask,
       content: [
@@ -57,7 +99,7 @@ const createMcpServer = () => {
       "openai/widgetAccessible": true
     }
   }, () => {
-    if (tasks.length === 0) {
+    if (taskStore.length === 0) {
       return {
         structuredContent: { tasks: [] },
         content: [
@@ -67,9 +109,9 @@ const createMcpServer = () => {
     }
 
     return {
-      structuredContent: { tasks },
+      structuredContent: { tasks: taskStore },
       content: [
-        { type: 'text', text: tasks.map(t => t.text).join('\n') },
+        { type: 'text', text: taskStore.map(t => t.text).join('\n') },
       ],
     }
   });
@@ -92,7 +134,7 @@ const createMcpServer = () => {
       "openai/widgetAccessible": true
     },
   }, ({ id }) => {
-    const task = tasks.find(t => t.id === id);
+    const task = taskStore.find(t => t.id === id);
     if (task) task.completed = true;
     return {
       structuredContent: task,
@@ -120,36 +162,107 @@ const createMcpServer = () => {
 };
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowAllOrigins || TRUSTED_ORIGINS.includes(origin)) {
+        return callback(null, origin || true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  })
+);
+
 app.use(express.json());
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+app.use((err, req, res, next) => {
+  if (err?.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'origin_not_allowed' });
   }
-  next();
+  return next(err);
 });
 
-let tasks = [];
+const resolveTaskContext = (req, res) => {
+  if (!ENABLE_AUTH_GATE) {
+    return { userId: null, tasks: legacyTasks };
+  }
 
-app.get('/tasks', (req, res) => res.json(tasks));
-app.post('/tasks', (req, res) => {
-  const newTask = { id: Date.now(), text: req.body.text, completed: false };
-  tasks.push(newTask);
+  if (!req.userId) {
+    res.status(403).json({ error: 'forbidden' });
+    logAuthState(req, 'forbidden');
+    return null;
+  }
+
+  return { userId: req.userId, tasks: getTasksForUser(req.userId) };
+};
+
+app.get('/mcp', async (req, res) => {
+  try {
+    const metadata = await fetchMcpMetadata(AUTH_MCP_METADATA_URL);
+    logAuthState(req, 'fetch_mcp_metadata');
+    res.json(metadata);
+  } catch (error) {
+    console.error('Failed to retrieve MCP metadata', error);
+    res.status(502).json({ error: 'metadata_unavailable' });
+  }
+});
+
+const registerRoute = (method, path, handler) => {
+  if (ENABLE_AUTH_GATE) {
+    app[method](path, requireSession, handler);
+  } else {
+    app[method](path, handler);
+  }
+};
+
+registerRoute('get', '/tasks', (req, res) => {
+  const context = resolveTaskContext(req, res);
+  if (!context) return;
+  logAuthState(req, 'list_tasks', { taskCount: context.tasks.length });
+  res.json(context.tasks);
+});
+
+registerRoute('post', '/tasks', (req, res) => {
+  const context = resolveTaskContext(req, res);
+  if (!context) return;
+
+  const text = (req.body?.text ?? '').toString().trim();
+  if (!text) {
+    return res.status(400).json({ error: 'Task text is required' });
+  }
+
+  const newTask = { id: Date.now(), text, completed: false };
+  context.tasks.push(newTask);
+  logAuthState(req, 'create_task', { taskId: newTask.id });
   res.json(newTask);
 });
 
-app.post('/tasks/:id/complete', (req, res) => {
-  const task = tasks.find(t => t.id === +req.params.id);
-  if (task) task.completed = true;
-  res.json(task);
+registerRoute('post', '/tasks/:id/complete', (req, res) => {
+  const context = resolveTaskContext(req, res);
+  if (!context) return;
+
+  const task = context.tasks.find((item) => item.id === Number(req.params.id));
+  if (task) {
+    task.completed = true;
+    logAuthState(req, 'complete_task', { taskId: task.id });
+  }
+  res.json(task ?? null);
 });
 
-app.post('/mcp', async (req, res) => {
-  const server = createMcpServer();
+const mcpHandlers = [];
+if (ENABLE_AUTH_GATE) {
+  mcpHandlers.push(requireSession);
+}
+
+mcpHandlers.push(async (req, res) => {
+  const context = resolveTaskContext(req, res);
+  if (!context) return;
+
+  const server = createMcpServer(context.tasks);
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -162,8 +275,13 @@ app.post('/mcp', async (req, res) => {
 
   await server.connect(transport);
   await transport.handleRequest(req, res, req.body);
+  logAuthState(req, 'mcp_request');
 });
+
+app.post('/mcp', ...mcpHandlers);
 
 app.use(express.static("../client/dist"));
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

@@ -1,0 +1,149 @@
+<story-context id="centralized-better-auth" v="1.0">
+  <metadata>
+    <epicId>centralized-better-auth</epicId>
+    <storyId>1</storyId>
+    <title>Gate the Todo UI behind Better Auth</title>
+    <status>Done</status>
+    <generatedAt>2025-10-16</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-centralized-better-auth-1.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>todo user</asA>
+    <iWant>the widget to require Better Auth sign-in</iWant>
+    <soThat>only authorized sessions can read or mutate tasks.</soThat>
+    <tasks>- Install `better-auth@1.3.27` in the client workspace and record the version in `package.json`.
+- Create `client/src/authClient.js` with `createAuthClient` configuration and exported hooks.
+- Implement `AuthGate` component and sign-in UI, wiring it into `App.jsx` or the root layout.
+- Introduce `client/src/lib/api.js` helper and update existing task CRUD calls to use it.
+- Update `.env.example`, documentation snippets, and any README references related to client URLs.
+- Add minimal styling / UX polish for the sign-in state (loading, error, unauthenticated) per design standards.</tasks>
+  </story>
+
+  <acceptanceCriteria>- Better Auth React client instantiated in `client/src/authClient.js` using `VITE_AUTH_BASE_URL` and shared singleton exports (`useSession`, `signIn`, `signOut`).
+- Auth gate renders while `useSession` loads; unauthenticated users see a Google sign-in CTA that calls `signIn.social({ provider: 'google', fetchOptions: { credentials: 'include' } })`.
+- Successful sign-in hydrates session state, unlocks the existing task UI, and sign-out clears cookies then returns to the auth gate.
+- All task fetch/mutate calls flow through a new `apiFetch` helper that prefixes `VITE_TODO_API_BASE_URL`, sets `credentials: 'include'`, and surfaces 401s for re-auth prompts.
+- `client/.env.example` and local env docs list `VITE_AUTH_BASE_URL`, `VITE_MCP_METADATA_URL`, and `VITE_TODO_API_BASE_URL` with production defaults and local override guidance.</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>chatgpt-todo-app - Technical Specification</title>
+        <section>Technical Details › Client auth lifecycle</section>
+        <snippet>Outlines bootstrapping `createAuthClient` in `client/src/authClient.js`, sharing `useSession`, `signIn`, and `signOut`, and gating the UI with AuthGate until a Better Auth session is present.</snippet>
+      </doc>
+      <doc>
+        <path>docs/better-auth-integration-plan.md</path>
+        <title>Better Auth Integration Guide</title>
+        <section>Step 2 – Client Auth Bootstrap</section>
+        <snippet>Provides the reference implementation for creating the Better Auth React client and wiring Google sign-in via `signIn.social` with credentials included.</snippet>
+      </doc>
+      <doc>
+        <path>docs/development-guide.md</path>
+        <title>Development Guide — chatgpt-todo-app</title>
+        <section>Environment</section>
+        <snippet>Documents that the client still hard-codes `http://localhost:3000` and calls out the plan to introduce `AUTH_BASE_URL`/`TODO_API_BASE_URL` environment variables.</snippet>
+      </doc>
+      <doc>
+        <path>docs/deployment-guide.md</path>
+        <title>Deployment Guide — chatgpt-todo-app</title>
+        <section>Environment &amp; Configuration</section>
+        <snippet>Notes the absence of committed `.env` files and recommends wiring Better Auth URLs via `VITE_*` settings during deployment.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Architecture — chatgpt-todo-app</title>
+        <section>Executive Summary</section>
+        <snippet>Highlights that the app currently lacks authentication and calls out Better Auth integration as a near-term architectural priority.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>client/src/App.jsx</path>
+        <kind>component</kind>
+        <symbol>App</symbol>
+        <lines>1-142</lines>
+        <reason>Fetches tasks directly from `http://localhost:3000` and renders the widget; needs to wrap in AuthGate and route calls through the new API helper.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>client/src/main.jsx</path>
+        <kind>entry-point</kind>
+        <symbol>createRoot</symbol>
+        <lines>1-9</lines>
+        <reason>Top-level render path where the Better Auth bootstrap must be imported and the AuthGate introduced.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>client/vite.config.js</path>
+        <kind>build-config</kind>
+        <symbol>defineConfig</symbol>
+        <lines>1-8</lines>
+        <reason>Currently hard-codes the Vite base to an ngrok URL; needs to defer to environment-configured origins to align with Better Auth domains.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>client/package.json</path>
+        <kind>manifest</kind>
+        <symbol>dependencies</symbol>
+        <lines>1-22</lines>
+        <reason>Add `better-auth@0.5.6` and ensure React/Vite dependencies remain compatible after the auth client is introduced.</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="npm" scope="client">
+        <package name="react">^19.1.1</package>
+        <package name="react-dom">^19.1.1</package>
+        <package name="@tailwindcss/vite">^4.1.14</package>
+        <package name="vite">^7.1.7</package>
+        <package name="@vitejs/plugin-react">^5.0.4</package>
+      </ecosystem>
+      <ecosystem name="npm" scope="planned">
+        <package name="better-auth">1.3.27 (add via this story)</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Instantiate `createAuthClient` once and export shared hooks so every component consumes the same Better Auth client instance.</constraint>
+    <constraint>All client fetches must route through a helper that applies `credentials: 'include'` and uses env-configured base URLs.</constraint>
+    <constraint>Do not commit secrets; reflect new variables in `.env.example` and keep production values in deployment configuration.</constraint>
+    <constraint>Preserve the existing MCP widget UX while adding the auth gate so ChatGPT integrations continue to function.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>GET /tasks</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /tasks → Array&lt;{ id: number, text: string, completed: boolean }&gt;</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>POST /tasks</name>
+      <kind>REST endpoint</kind>
+      <signature>POST /tasks (body: { text: string }) → Task</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>POST /tasks/:id/complete</name>
+      <kind>REST endpoint</kind>
+      <signature>POST /tasks/:id/complete → Task</signature>
+      <path>server/index.js</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Project lacks automated tests today; follow Development Guide guidance by introducing Vitest/React Testing Library coverage alongside existing linting, focusing on AuthGate behaviour and credentialled fetch helpers.</standards>
+    <locations>
+      <location>client/src/__tests__/</location>
+      <location>client/src/components/__tests__/</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Unit test that mocks `createAuthClient` to ensure the wrapper is configured with `import.meta.env.VITE_AUTH_BASE_URL` and exports shared hooks.</idea>
+      <idea ac="AC2">Render AuthGate with a mocked `useSession` to confirm the unauthenticated branch shows the Google sign-in CTA and hides children.</idea>
+      <idea ac="AC3">Simulate signing out in the AuthGate to verify it resets session state and returns to the gate view.</idea>
+      <idea ac="AC4">Test the `apiFetch` helper to ensure it prefixes `VITE_TODO_API_BASE_URL`, includes credentials, and throws on 401 responses.</idea>
+      <idea ac="AC5">Add a configuration smoke test or build-time assertion that required env variables (`VITE_AUTH_BASE_URL`, `VITE_MCP_METADATA_URL`, `VITE_TODO_API_BASE_URL`) are defined.</idea>
+    </ideas>
+  </tests>
+</story-context>

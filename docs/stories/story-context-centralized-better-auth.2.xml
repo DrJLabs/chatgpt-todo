@@ -1,0 +1,164 @@
+<story-context id="centralized-better-auth" v="1.0">
+  <metadata>
+    <epicId>centralized-better-auth</epicId>
+    <storyId>2</storyId>
+    <title>Secure Express API and MCP endpoints</title>
+    <status>Done</status>
+    <generatedAt>2025-10-16</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-centralized-better-auth-2.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>operations owner</asA>
+    <iWant>the todo server to enforce Better Auth before serving REST or MCP traffic</iWant>
+    <soThat>unauthorized requests fail consistently while valid sessions succeed.</soThat>
+    <tasks>- Implement `server/session.js` and integrate it in `server/index.js` for REST and MCP routes.
+- Add CORS middleware with explicit origin checks and credentials support; remove legacy wildcard headers.
+- Build metadata proxy utility (`server/mcpMetadata.js`) and expose `GET /mcp` route with caching.
+- Update environment templates and documentation (deployment guide, tech spec references) with new server variables.
+- Run smoke tests hitting `/tasks` and `/mcp` with and without Better Auth cookies; capture results in rollout notes.</tasks>
+  </story>
+
+  <acceptanceCriteria>- `server/session.js` middleware verifies sessions via `AUTH_BASE_URL + '/session'`, attaches the session object, and returns HTTP 401 for missing/invalid cookies.
+- `/tasks` REST routes and `POST /mcp` register `requireSession` before handlers; existing task schema and MCP tools continue to function for authenticated users.
+- `GET /mcp` proxies metadata from `AUTH_MCP_METADATA_URL` with a 5-minute cache and surfaces `502 metadata_unavailable` on upstream failure.
+- Express CORS configuration restricts origins to `TRUSTED_ORIGINS`, echoes the requesting origin when allowed, and sets `Access-Control-Allow-Credentials: true` without wildcard headers.
+- `server/.env.example` enumerates `AUTH_BASE_URL`, `AUTH_MCP_METADATA_URL`, `TODO_API_BASE_URL`, and `TRUSTED_ORIGINS` with documentation updates in the deployment guide.
+- Manual verification documents successful 401 for unsigned requests and successful MCP tool execution after authentication.</acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>chatgpt-todo-app - Technical Specification</title>
+        <section>Server session enforcement</section>
+        <snippet>Specifies the `requireSession` middleware pattern, Node fetch usage, and the requirement to enforce Better Auth on REST and `POST /mcp` routes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>chatgpt-todo-app - Technical Specification</title>
+        <section>MCP metadata proxy &amp; CORS</section>
+        <snippet>Details how to proxy `AUTH_MCP_METADATA_URL` with a 5-minute cache and replace wildcard CORS headers with an allow-list fed by `TRUSTED_ORIGINS`.</snippet>
+      </doc>
+      <doc>
+        <path>docs/better-auth-integration-plan.md</path>
+        <title>Better Auth Integration Plan</title>
+        <section>Phase 2 – Server (MCP) Integration</section>
+        <snippet>Outlines creation of `server/session.js`, forwarding cookies to the central Better Auth server, tightening CORS, and introducing new environment variables.</snippet>
+      </doc>
+      <doc>
+        <path>docs/deployment-guide.md</path>
+        <title>Deployment Guide — chatgpt-todo-app</title>
+        <section>Environment &amp; Configuration</section>
+        <snippet>Calls out the absence of committed `.env` files today and highlights the need to wire `AUTH_BASE_URL`, `AUTH_MCP_METADATA_URL`, and `TODO_API_BASE_URL` for deployment.</snippet>
+      </doc>
+      <doc>
+        <path>docs/architecture.md</path>
+        <title>Architecture — chatgpt-todo-app</title>
+        <section>Risks &amp; Next Steps</section>
+        <snippet>Lists authentication hardening as a top risk, directing us to implement Better Auth session middleware and replace hard-coded URLs.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>server/index.js</path>
+        <kind>server</kind>
+        <symbol>Express app &amp; MCP transport</symbol>
+        <lines>1-169</lines>
+        <reason>Currently allows anonymous access, sets wildcard CORS headers, and lacks MCP metadata proxying; needs middleware integration.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/package.json</path>
+        <kind>manifest</kind>
+        <symbol>dependencies</symbol>
+        <lines>1-22</lines>
+        <reason>Lists core server dependencies (`express`, `cors`, `@modelcontextprotocol/sdk`, `zod`) that must remain compatible after adding auth middleware.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/session.js</path>
+        <kind>middleware</kind>
+        <symbol>requireSession</symbol>
+        <lines>n/a</lines>
+        <reason>New module to implement Better Auth cookie validation and attach session data before REST/MCP handlers execute.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/mcpMetadata.js</path>
+        <kind>utility</kind>
+        <symbol>fetchMetadata</symbol>
+        <lines>n/a</lines>
+        <reason>New helper for caching and serving MCP discovery metadata via the todo domain.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/.env.example</path>
+        <kind>config</kind>
+        <symbol>environment template</symbol>
+        <lines>n/a</lines>
+        <reason>Needs to be created/updated to document `AUTH_BASE_URL`, `AUTH_MCP_METADATA_URL`, `TODO_API_BASE_URL`, and `TRUSTED_ORIGINS`.</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="npm" scope="server">
+        <package name="express">^5.1.0</package>
+        <package name="cors">^2.8.5</package>
+        <package name="@modelcontextprotocol/sdk">^1.19.1</package>
+        <package name="zod">^3.25.76</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Reuse the central Better Auth server for session validation; do not roll a standalone auth stack inside this repo.</constraint>
+    <constraint>Keep REST and MCP responses backwards compatible (task schema, MCP tool metadata) while adding auth checks.</constraint>
+    <constraint>Ensure CORS configuration only whitelists trusted origins and always sets `Access-Control-Allow-Credentials: true`.</constraint>
+    <constraint>Gracefully handle Better Auth outages by returning 401/502 without leaking sensitive error details.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>GET /tasks</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /tasks → Array&lt;Task&gt;</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>POST /tasks</name>
+      <kind>REST endpoint</kind>
+      <signature>POST /tasks (body: { text: string }) → Task</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>POST /tasks/:id/complete</name>
+      <kind>REST endpoint</kind>
+      <signature>POST /tasks/:id/complete → Task</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>POST /mcp</name>
+      <kind>MCP transport</kind>
+      <signature>POST /mcp (MCP request payload)</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>GET /mcp</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /mcp → MCP discovery metadata</signature>
+      <path>server/index.js (to add)</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Server currently lacks automated tests; prefer Supertest or Jest for REST endpoints and integration coverage to verify auth flows once implemented.</standards>
+    <locations>
+      <location>server/tests/</location>
+      <location>scripts/smoke/</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Mock Better Auth session responses and assert `/tasks` returns 401 without cookies and succeeds when `requireSession` receives a valid session payload.</idea>
+      <idea ac="AC2">Exercise `/tasks` and `POST /mcp` end-to-end to confirm authenticated requests mutate tasks and MCP tools continue to function.</idea>
+      <idea ac="AC3">Hit `GET /mcp` twice, ensuring the second call serves cached metadata and returns 502 if the upstream is unavailable.</idea>
+      <idea ac="AC4">Validate CORS middleware only allows configured origins and sets `Access-Control-Allow-Credentials: true`.</idea>
+      <idea ac="AC5">Smoke test `/tasks` and `/mcp` with and without Better Auth cookies, documenting observed status codes for deployment runbooks.</idea>
+    </ideas>
+  </tests>
+</story-context>

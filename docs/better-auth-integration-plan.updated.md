@@ -64,9 +64,7 @@ export const auth = createAuthClient({
   baseURL: import.meta.env.VITE_AUTH_BASE_URL!,
 });
 
-// Optional: expose PRM URL for any consumers that need metadata discovery
-export const PROTECTED_RESOURCE_URL =
-  import.meta.env.VITE_PROTECTED_RESOURCE_URL!;
+export const { useSession, signIn, signOut } = auth;
 ```
 
 Integrate in your app (example):
@@ -146,6 +144,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
 Wrap protected UI routes with `<AuthGate>`.
 
+> Emergency rollback: set `VITE_ENABLE_AUTH_GATE=false` to bypass the AuthGate while server middleware is disabled (see Phase 4).
+
 ---
 
 ## Phase 4 – Server (in this repo) session gating
@@ -190,6 +190,8 @@ export default app;
 await fetch("/tasks", { credentials: "include" });
 ```
 
+> Feature flag: `ENABLE_AUTH_GATE=false` bypasses `requireSession` and reverts to global task storage during incidents.
+
 ---
 
 ## Phase 5 – Testing & rollout (client‑side)
@@ -208,10 +210,12 @@ curl -i -H "Cookie: <your-browser-cookie>" https://auth.onemainarmy.com/api/auth
 1. Load the app (e.g., `http://localhost:5173` in dev).
 2. Click **Sign in with Google**; finish consent; you should be redirected back by the central server.
 3. Reload the app; `fetchSession()` returns a user; protected UI renders; server routes accept requests with cookies.
+4. Toggle `VITE_ENABLE_AUTH_GATE`/`ENABLE_AUTH_GATE` to `false` and re-run the smoke tests to ensure legacy flows remain functional.
 
 **Dev tips**
 - For local UI → prod auth, always set `credentials: "include"` on fetch.
 - If your browser blocks third‑party cookies, open the auth domain once in a tab to establish trust, or run the UI on a subdomain of `onemainarmy.com` for a first‑party experience in production.
+- Capture regression outcomes (auth enforced / bypassed) in the deployment runbook for future releases.
 
 ---
 

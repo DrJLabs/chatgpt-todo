@@ -73,6 +73,34 @@ cd ../client
 npm install
 ```
 
+### Configure environment variables
+
+Create a client env file based on the example and point it at the central Better Auth deployment (or your local tunnel when developing):
+
+```bash
+cp client/.env.example client/.env.local
+# Update the values as needed
+```
+
+Key values:
+
+- `VITE_AUTH_BASE_URL` – Better Auth base URL (e.g., `https://auth.onemainarmy.com/api/auth` or your local tunnel)
+- `VITE_MCP_METADATA_URL` – MCP metadata hosted by the auth server
+- `VITE_TODO_API_BASE_URL` – URL where this todo API is exposed (production host or `http://localhost:3000` in dev)
+- Optional `VITE_CLIENT_BASE` – Override Vite’s build base path when deploying under a subdirectory
+- Optional `VITE_ENABLE_AUTH_GATE` – Set to `false` to bypass the Better Auth gate during emergency rollback
+
+For the server, copy the example and adjust trusted origins to match your deployment:
+
+```bash
+cp server/.env.example server/.env
+# Update AUTH_BASE_URL, AUTH_MCP_METADATA_URL, TODO_API_BASE_URL, TRUSTED_ORIGINS as needed
+```
+
+Server-side flag:
+
+- `ENABLE_AUTH_GATE` – Set to `false` to disable auth enforcement middleware while investigating issues (reverts to legacy unauthenticated behavior)
+
 ### Build the Client
 
 Build the React client before starting the server:
@@ -179,6 +207,7 @@ chatgpt-app-todo/
 - React 19 - UI library
 - Vite - Build tool
 - Tailwind CSS - Styling
+- Better Auth React Client - Authentication
 - useSyncExternalStore - React hook for external state management
 
 ## Features
@@ -204,4 +233,3 @@ This pattern enables the widget to respond instantly when ChatGPT executes MCP t
 ## License
 
 ISC
-

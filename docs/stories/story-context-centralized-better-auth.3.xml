@@ -1,0 +1,148 @@
+<story-context id="centralized-better-auth" v="1.0">
+  <metadata>
+    <epicId>centralized-better-auth</epicId>
+    <storyId>3</storyId>
+    <title>Operationalize Better Auth rollout and observability</title>
+    <status>Done</status>
+    <generatedAt>2025-10-16</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/story-centralized-better-auth-3.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>platform team</asA>
+    <iWant>guardrails and monitoring around the Better Auth rollout</iWant>
+    <soThat>we can deploy safely, roll back quickly, and detect auth regressions.</soThat>
+    <tasks>- Add environment-driven toggle controlling AuthGate rendering and server middleware enforcement; document usage in README/deployment guide.
+- Execute manual regression plan covering UI, REST, and MCP flows; record findings in deployment guide or runbook.
+- Update documentation (`docs/deployment-guide.md`, `docs/better-auth-integration-plan.md`, tech spec) with ownership assignments and rollback procedures.
+- Collaborate with ops/infra to configure dashboards and alerts (e.g., Grafana/DataDog) for the defined metrics.
+- Ensure logging configuration captures auth-related context and review retention/PII compliance.
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>- Feature flag `ENABLE_AUTH_GATE` (or similar) detects env configuration and can disable the auth gate + server middleware for emergency rollback; instructions documented for toggling it.
+- Regression checklist executed for MCP tools and task flows with the flag both on and off, with results captured in deployment notes.
+- Responsibility matrix recorded in docs to show Auth Ops (redirect URIs/trusted origins), Infrastructure (DNS/SSL/env rotation), and Product Engineering (guide maintenance/MCP updates).
+- Observability plan implemented: dashboards tracking Better Auth session success rate, MCP 401/403 counts, task latency; alerts configured for auth success <95% or MCP 401s >5% for 10 minutes.
+- Structured logging changes or configuration documented to surface `userId`, `route`, and `authState` (without PII) for auth debugging.
+    </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec.md</path>
+        <title>chatgpt-todo-app - Technical Specification</title>
+        <section>Implementation Guide & Observability</section>
+        <snippet>Describes ENABLE_AUTH_GATE rollout flag, regression checklist, ownership assignments, and observability metrics (auth success, MCP 401/403, task latency).</snippet>
+      </doc>
+      <doc>
+        <path>docs/deployment-guide.md</path>
+        <title>Deployment Guide — chatgpt-todo-app</title>
+        <section>Better Auth Rollout Runbook</section>
+        <snippet>Records regression matrix results, feature flag usage, and ownership hand-offs with 2025-10-16 smoke test outcomes.</snippet>
+      </doc>
+      <doc>
+        <path>docs/better-auth-integration-plan.md</path>
+        <title>Better Auth Integration Plan</title>
+        <section>Phase 4 – Security & Compliance</section>
+        <snippet>Highlights need for HTTPS, trusted origins, monitoring, and the documented rollback strategy.</snippet>
+      </doc>
+      <doc>
+        <path>README.md</path>
+        <title>ChatGPT Todo App README</title>
+        <section>Configure environment variables</section>
+        <snippet>Instructs copying client/server env templates and notes rollback flag usage.</snippet>
+      </doc>
+      <doc>
+        <path>docs/development-guide.md</path>
+        <title>Development Guide — chatgpt-todo-app</title>
+        <section>Environment</section>
+        <snippet>Documents both client and server env flags, including ENABLE_AUTH_GATE overrides.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <codeArtifact>
+        <path>client/src/App.jsx</path>
+        <kind>component</kind>
+        <symbol>TasksApp</symbol>
+        <lines>1-220</lines>
+        <reason>Implements Vite-driven feature flag to bypass AuthGate during rollbacks.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/index.js</path>
+        <kind>server</kind>
+        <symbol>Express app</symbol>
+        <lines>1-320</lines>
+        <reason>Applies ENABLE_AUTH_GATE toggle, structured logging, and per-user task storage.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>server/session.js</path>
+        <kind>middleware</kind>
+        <symbol>requireSession</symbol>
+        <lines>1-40</lines>
+        <reason>Supports bypass logic via feature flag and continues to enforce Better Auth when enabled.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>docs/deployment-guide.md</path>
+        <kind>doc</kind>
+        <symbol>Rollout runbook</symbol>
+        <lines>120-200</lines>
+        <reason>Contains regression matrix and ownership assignments derived from this story.</reason>
+      </codeArtifact>
+      <codeArtifact>
+        <path>docs/better-auth-integration-plan.md</path>
+        <kind>doc</kind>
+        <symbol>Integration plan</symbol>
+        <lines>80-200</lines>
+        <reason>Updated to describe feature flags, rollback procedure, and monitoring expectations.</reason>
+      </codeArtifact>
+    </code>
+    <dependencies>
+      <ecosystem name="npm" scope="client/server">
+        <package name="vite">^7.1.7</package>
+        <package name="express">^5.1.0</package>
+        <package name="cors">^2.8.5</package>
+      </ecosystem>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Both client and server must honour ENABLE_AUTH_GATE/WITE_ENABLE_AUTH_GATE toggles and document their default behavior.</constraint>
+    <constraint>Regression evidence (flag on/off) should be logged with dates in deployment documentation.</constraint>
+    <constraint>Observability metrics must be defined before production rollout; alerts require operations sign-off.</constraint>
+    <constraint>Structured logging additions must avoid storing personal data.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Feature Flag: ENABLE_AUTH_GATE</name>
+      <kind>environment variable</kind>
+      <signature>Boolean (default "true")</signature>
+      <path>server/index.js</path>
+    </interface>
+    <interface>
+      <name>Feature Flag: VITE_ENABLE_AUTH_GATE</name>
+      <kind>build-time variable</kind>
+      <signature>Boolean (default "true")</signature>
+      <path>client/src/App.jsx</path>
+    </interface>
+    <interface>
+      <name>Dashboards/Alerts</name>
+      <kind>operational processes</kind>
+      <signature>Auth success rate, MCP 401/403, task latency metrics</signature>
+      <path>docs/deployment-guide.md</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Regression evidence stored in deployment runbook; automated coverage pending future observability scripting.</standards>
+    <locations>
+      <location>docs/deployment-guide.md (runbook)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Harness flags on/off in integration tests once persistence is added.</idea>
+      <idea ac="AC2">Automate MCP smoke checks to validate alerts fire when thresholds exceeded.</idea>
+    </ideas>
+  </tests>
+</story-context>
