@@ -1,7 +1,7 @@
 # Comprehensive Analysis — chatgpt-todo-app
 
 ## Configuration Highlights
-- `client/vite.config.js` sets Vite base URL to `https://lignitic-sustentative-kasi.ngrok-free.dev` and enables React + Tailwind plugins.
+- `client/vite.config.js` reads the Vite base URL from `VITE_CLIENT_BASE` (default `'/'`) and enables React + Tailwind plugins.
 - `client/tailwind.config.js` scans `index.html` and `src/**/*` for utility classes; no custom theme extensions.
 - `client/eslint.config.js` applies ESLint recommended rules with React Hooks/Refresh plugins; ignores `dist` outputs.
 
@@ -14,12 +14,13 @@
 - `client/src/useOpenAiGlobal.js` is the sole shared hook, abstracting MCP global subscriptions.
 
 ## Auth & Security Observations
-- No auth middleware yet; CORS allows all origins and requests.
-- Better Auth integration plan should introduce session middleware and authenticated fetches.
+- Session-based authentication is enforced via `requireSession` (Better Auth) whenever `ENABLE_AUTH_GATE` remains `true`; toggling the flag is a documented rollback lever.
+- CORS is restricted to origins listed in `TRUSTED_ORIGINS` and always returns `Access-Control-Allow-Credentials: true` so cookies survive cross-origin calls.
+- Ensure rollback guidance highlights the security risk of disabling the gate for extended periods.
 
 ## CI/CD & Localization
 - No CI workflow files or localization assets detected.
 
 ## Summary
-- Configuration is minimal and dev-focused, with hard-coded localhost URLs and ngrok base.
-- Production hardening requires: environment variables, authentication, persistence, and CI automation.
+- Configuration is dev-focused but now driven by env vars (`VITE_*`, `ENABLE_AUTH_GATE`, `TRUSTED_ORIGINS`); defaults target localhost Better Auth services.
+- Production hardening still requires persistence, comprehensive monitoring, and CI automation, plus careful management of the auth gate rollback flags.

@@ -21,7 +21,7 @@
 - `server/.env.example` · updated template including `AUTH_BASE_URL`, `AUTH_MCP_METADATA_URL`, `TODO_API_BASE_URL`, and `TRUSTED_ORIGINS`.
 - `server/session.js` · middleware enforcing Better Auth session on REST + MCP routes.
 - `server/mcpMetadata.js` · utility for fetching and caching metadata from the central auth server.
-- `server/index.js` · integrates env vars, strict CORS, session middleware, metadata proxy, and MCP auth guard.
+- `server/index.js` · integrates env vars, strict CORS allow-list, session middleware, metadata proxy, and MCP auth guard.
 - `docs/better-auth-integration-plan.md` · merged comprehensive integration guide aligned with official docs.
 - `better-auth-integration-plan.updated.md` · deprecated or converted into redirect to the canonical doc.
 
@@ -42,7 +42,7 @@
 
 - **Authentication SDK**: `better-auth@1.3.27` React client (`better-auth/react`) pinned via package.json, aligned with official `client.mdx` guidance.
 - **Frontend framework**: Vite 5 + `react@18.3.1` / `react-dom@18.3.1` (existing) with Tailwind-style utility classes already present.
-- **HTTP utilities**: Native `fetch` wrapped in project-level helper; all requests set `credentials: 'include'` to comply with Better Auth cookie requirements.
+- **HTTP utilities**: Native `fetch` wrapped in project-level helper; all browser requests set `credentials: 'include'` to comply with Better Auth cookie requirements.
 - **Server runtime**: Node.js `20.12.2` LTS with Express `4.19.2`, relying on built-in `fetch`; fallback to `node-fetch@3.3.2` only if older Node is required.
 - **Environment management**: `dotenv@16.4.5` on the server, Vite `VITE_*` vars on the client; production secrets managed outside repo per `.env.example`.
 - **MCP transport**: `@modelcontextprotocol/sdk@0.5.0` server with `StreamableHTTPServerTransport`, now sitting behind auth middleware.
@@ -104,15 +104,54 @@
   ```js
   export async function requireSession(req, res, next) {
     try {
-      const response = await fetch(`${process.env.AUTH_BASE_URL}/session`, {
-        headers: { cookie: req.headers.cookie ?? '' },
-        credentials: 'include',
-      });
-      if (!response.ok) return res.status(401).json({ error: 'unauthenticated' });
-      req.session = await response.json();
+      const cookieHeader = req.headers.cookie ?? '';
+      if (!cookieHeader) {
+        return res.status(401).json({ error: 'unauthenticated' });
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      let response;
+      try {
+        response = await fetch(`${process.env.AUTH_BASE_URL}/session`, {
+          headers: { cookie: cookieHeader },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          console.error('Session validation timed out');
+          return res.status(401).json({ error: 'unauthenticated' });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok) {
+        return res.status(401).json({ error: 'unauthenticated' });
+      }
+
+      let session;
+      try {
+        session = await response.json();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : error;
+        console.error('Failed to parse session payload:', message);
+        return res.status(401).json({ error: 'unauthenticated' });
+      }
+
+      const userId = session?.user?.id ?? session?.user?.userId ?? session?.user?.sub ?? null;
+      if (!userId) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+
+      req.session = session;
+      req.userId = userId;
       next();
-    } catch (err) {
-      console.error('Session check failed', err);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : error;
+      console.error('Session validation failed:', message);
       res.status(401).json({ error: 'unauthenticated' });
     }
   }
@@ -120,36 +159,28 @@
 - Apply to all REST routes and `POST /mcp`; pass through to MCP transport only after session validation.
 
 ### MCP metadata proxy
-- Add `GET /mcp` route:
-  ```js
-  import { readFileSync } from 'node:fs';
-  import { fetch } from 'node-fetch'; // Node <18 fallback
-
-  let cachedMetadata;
-  app.get('/mcp', async (req, res) => {
-    if (!cachedMetadata || Date.now() - cachedMetadata.cachedAt > 5 * 60 * 1000) {
-      const resp = await fetch(process.env.AUTH_MCP_METADATA_URL);
-      if (!resp.ok) return res.status(502).json({ error: 'metadata_unavailable' });
-      cachedMetadata = {
-        cachedAt: Date.now(),
-        payload: await resp.json(),
-      };
-    }
-    res.json(cachedMetadata.payload);
-  });
-  ```
-- Document caching strategy (5-minute TTL) to avoid hammering central server.
+- `server/mcpMetadata.js` exposes `fetchMcpMetadata(url, timeoutMs)` which caches responses for 5 minutes, aborts slow upstream calls, and surfaces descriptive errors (`metadata_timeout`, `metadata_parse_error`).
+- `server/index.js` reuses that helper in `GET /mcp-metadata` and the two `.well-known` routes, reshaping the `resource` claim to match `TODO_PUBLIC_BASE_URL` before returning JSON to clients.
 
 ### CORS & transport
 - Update Express CORS:
   ```js
-  const allowedOrigins = process.env.TRUSTED_ORIGINS?.split(',') ?? [];
+  const TRUSTED_ORIGINS = (process.env.TRUSTED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.use(cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, origin);
-      return callback(new Error('Not allowed by CORS'));
+      if (!origin) return callback(null, true);
+      if (TRUSTED_ORIGINS.length === 0 || TRUSTED_ORIGINS.includes(origin)) {
+        return callback(null, origin);
+      }
+      return callback(new Error('origin_not_allowed'));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   }));
   ```
 - Remove wildcard headers; ensure `Access-Control-Allow-Origin` echoes request origin when allowed and `Access-Control-Allow-Credentials: true`.

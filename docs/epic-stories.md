@@ -113,7 +113,7 @@ so that we can deploy safely, roll back quickly, and detect auth regressions.
 
 ## Story Map
 
-```
+```text
 Epic: Centralized Better Auth Protection
 ├── Story 1: Gate the Todo UI behind Better Auth (3 points)
 ├── Story 2: Secure Express API and MCP endpoints (3 points)

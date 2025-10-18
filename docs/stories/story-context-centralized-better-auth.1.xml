@@ -45,7 +45,7 @@
         <path>docs/development-guide.md</path>
         <title>Development Guide — chatgpt-todo-app</title>
         <section>Environment</section>
-        <snippet>Documents that the client still hard-codes `http://localhost:3000` and calls out the plan to introduce `AUTH_BASE_URL`/`TODO_API_BASE_URL` environment variables.</snippet>
+        <snippet>Documents env-driven client URLs via `VITE_AUTH_BASE_URL`/`VITE_TODO_API_BASE_URL` and the Better Auth feature flags used by the new `apiFetch` helper.</snippet>
       </doc>
       <doc>
         <path>docs/deployment-guide.md</path>
@@ -66,7 +66,7 @@
         <kind>component</kind>
         <symbol>App</symbol>
         <lines>1-142</lines>
-        <reason>Fetches tasks directly from `http://localhost:3000` and renders the widget; needs to wrap in AuthGate and route calls through the new API helper.</reason>
+        <reason>Hosts the gated task UI; now verifies AuthGate wiring and the env-driven `apiFetch` helper used for credentialled requests.</reason>
       </codeArtifact>
       <codeArtifact>
         <path>client/src/main.jsx</path>
@@ -80,14 +80,14 @@
         <kind>build-config</kind>
         <symbol>defineConfig</symbol>
         <lines>1-8</lines>
-        <reason>Currently hard-codes the Vite base to an ngrok URL; needs to defer to environment-configured origins to align with Better Auth domains.</reason>
+        <reason>Ensures the Vite base path respects `VITE_CLIENT_BASE`, aligning build output with Better Auth-friendly origins.</reason>
       </codeArtifact>
       <codeArtifact>
         <path>client/package.json</path>
         <kind>manifest</kind>
         <symbol>dependencies</symbol>
         <lines>1-22</lines>
-        <reason>Add `better-auth@0.5.6` and ensure React/Vite dependencies remain compatible after the auth client is introduced.</reason>
+        <reason>Locks `better-auth@1.3.27` alongside the existing React/Vite toolchain to support the AuthGate implementation.</reason>
       </codeArtifact>
     </code>
     <dependencies>

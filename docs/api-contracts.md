@@ -11,8 +11,8 @@ The Express server in `server/index.js` exposes a minimal task management API co
 | POST | `/tasks/:id/complete` | Marks the specified task as completed (if found). | n/a | `{ id: number, text: string, completed: true } \| null if not found` |
 
 ### Notes
-- Storage is an in-memory array (`let tasks = []`); no persistence layer.
-- CORS headers allow `*` origin and `GET, POST, OPTIONS` methods.
+- When `ENABLE_AUTH_GATE=true`, tasks are stored in per-user in-memory arrays keyed by the Better Auth user id; disabling the flag falls back to the legacy shared array for emergency rollback.
+- CORS responses echo only trusted origins from `TRUSTED_ORIGINS` and include `Access-Control-Allow-Credentials: true` so session cookies flow between the todo server and Better Auth.
 - Failures for unknown task IDs return `null` (no explicit 404 handling).
 
 ## MCP Endpoint
@@ -31,6 +31,6 @@ The Express server in `server/index.js` exposes a minimal task management API co
 - Registers `chatgpt-app-todo-widget` providing the compiled SPA via `ui://widget/chatgpt-app-todo.html` (loaded from `client/dist/index.html`).
 
 ## Integration Considerations
-- No authentication; future Better Auth integration must secure all endpoints.
+- Authentication is enforced via Better Auth session middleware (`requireSession` in `server/session.js`) whenever `ENABLE_AUTH_GATE` is left at its default `true` value.
 - POST endpoints expect JSON; ensure `Content-Type: application/json` is set by clients.
 - Concurrency is not handled; simultaneous modifications could overwrite in-memory state.

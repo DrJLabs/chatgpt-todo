@@ -74,7 +74,7 @@
         <kind>server</kind>
         <symbol>Express app</symbol>
         <lines>1-320</lines>
-        <reason>Applies ENABLE_AUTH_GATE toggle, structured logging, and per-user task storage.</reason>
+        <reason>Applies ENABLE_AUTH_GATE toggle, strict CORS allow-listing, metadata proxying, and per-user task storage.</reason>
       </codeArtifact>
       <codeArtifact>
         <path>server/session.js</path>
@@ -108,7 +108,7 @@
   </artifacts>
 
   <constraints>
-    <constraint>Both client and server must honour ENABLE_AUTH_GATE/WITE_ENABLE_AUTH_GATE toggles and document their default behavior.</constraint>
+    <constraint>Both client and server must honour ENABLE_AUTH_GATE/VITE_ENABLE_AUTH_GATE toggles and document their default behavior.</constraint>
     <constraint>Regression evidence (flag on/off) should be logged with dates in deployment documentation.</constraint>
     <constraint>Observability metrics must be defined before production rollout; alerts require operations sign-off.</constraint>
     <constraint>Structured logging additions must avoid storing personal data.</constraint>

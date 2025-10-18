@@ -19,11 +19,7 @@ function TasksApp() {
     try {
       setError(null);
       const response = await apiFetch("/tasks");
-      const nextTasks = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.tasks)
-          ? response.tasks
-          : [];
+      const nextTasks = Array.isArray(response) ? response : [];
       setTasks(nextTasks);
     } catch (err) {
       setError(err);

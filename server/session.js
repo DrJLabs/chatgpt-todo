@@ -1,7 +1,7 @@
 const AUTH_BASE_URL = process.env.AUTH_BASE_URL || 'https://auth.onemainarmy.com/api/auth';
 
 const extractUserId = (session) =>
-  session?.user?.id ?? session?.user?.userId ?? session?.user?.sub ?? session?.user?.email ?? null;
+  session?.user?.id ?? session?.user?.userId ?? session?.user?.sub ?? null;
 
 export async function requireSession(req, res, next) {
   try {
@@ -10,15 +10,37 @@ export async function requireSession(req, res, next) {
       return res.status(401).json({ error: 'unauthenticated' });
     }
 
-    const response = await fetch(`${AUTH_BASE_URL}/session`, {
-      headers: { cookie: cookieHeader },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    let response;
+    try {
+      response = await fetch(`${AUTH_BASE_URL}/session`, {
+        headers: { cookie: cookieHeader },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        console.error('Session validation timed out');
+        return res.status(401).json({ error: 'unauthenticated' });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       return res.status(401).json({ error: 'unauthenticated' });
     }
 
-    const session = await response.json();
+    let session;
+    try {
+      session = await response.json();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : error;
+      console.error('Failed to parse session payload:', message);
+      return res.status(401).json({ error: 'unauthenticated' });
+    }
     const userId = extractUserId(session);
 
     if (!userId) {
@@ -29,7 +51,8 @@ export async function requireSession(req, res, next) {
     req.userId = userId;
     next();
   } catch (error) {
-    console.error('Session validation failed', error);
+    const message = error instanceof Error ? error.message : error;
+    console.error('Session validation failed:', message);
     res.status(401).json({ error: 'unauthenticated' });
   }
 }

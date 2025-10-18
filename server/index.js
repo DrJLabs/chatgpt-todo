@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config as loadEnv } from 'dotenv';
 import { requireSession } from './session.js';
+import { fetchMcpMetadata } from './mcpMetadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.resolve(__dirname, '..', '.env') });
@@ -22,6 +23,13 @@ const AUTH_DISCOVERY_URL =
   'https://auth.onemainarmy.com/.well-known/oauth-authorization-server';
 const TODO_PUBLIC_BASE_URL =
   process.env.TODO_PUBLIC_BASE_URL || 'https://todo.onemainarmy.com';
+const TRUSTED_ORIGINS = (process.env.TRUSTED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowAllOrigins = TRUSTED_ORIGINS.length === 0;
+
+const clientDistDir = path.resolve(__dirname, '../client/dist');
 
 const sharedTasks = [];
 const tasksByUser = new Map();
@@ -33,12 +41,7 @@ const ensureTaskStore = (userId) => {
   return tasksByUser.get(userId);
 };
 
-const resolveTasks = (req) => {
-  if (!ENABLE_AUTH_GATE) {
-    return sharedTasks;
-  }
-  return ensureTaskStore(req.userId);
-};
+const resolveTaskStore = (req) => (ENABLE_AUTH_GATE ? ensureTaskStore(req.userId) : sharedTasks);
 
 const shapeProtectedResourceMetadata = (metadata) => {
   return {
@@ -61,11 +64,13 @@ const createMcpServer = (taskStore) => {
       inputSchema: {
         text: z.string(),
       },
-      outputSchema: {
-        id: z.number(),
-        text: z.string(),
-        completed: z.boolean(),
-      },
+      outputSchema: z
+        .object({
+          id: z.number(),
+          text: z.string(),
+          completed: z.boolean(),
+        })
+        .nullable(),
       _meta: {
         'openai/outputTemplate': 'ui://widget/chatgpt-app-todo.html',
         'openai/toolInvocation/invoking': 'Creating task...',
@@ -120,11 +125,13 @@ const createMcpServer = (taskStore) => {
       inputSchema: {
         id: z.number(),
       },
-      outputSchema: {
-        id: z.number(),
-        text: z.string(),
-        completed: z.boolean(),
-      },
+      outputSchema: z
+        .object({
+          id: z.number(),
+          text: z.string(),
+          completed: z.boolean(),
+        })
+        .nullable(),
       _meta: {
         'openai/outputTemplate': 'ui://widget/chatgpt-app-todo.html',
         'openai/toolInvocation/invoking': 'Completing task...',
@@ -152,11 +159,13 @@ const createMcpServer = (taskStore) => {
       inputSchema: {
         id: z.number(),
       },
-      outputSchema: {
-        id: z.number(),
-        text: z.string(),
-        completed: z.boolean(),
-      },
+      outputSchema: z
+        .object({
+          id: z.number(),
+          text: z.string(),
+          completed: z.boolean(),
+        })
+        .nullable(),
       _meta: {
         'openai/outputTemplate': 'ui://widget/chatgpt-app-todo.html',
         'openai/toolInvocation/invoking': 'Deleting task...',
@@ -174,13 +183,13 @@ const createMcpServer = (taskStore) => {
       }
       const [removed] = taskStore.splice(index, 1);
       return {
-        structuredContent: removed,
+        structuredContent: removed ?? null,
         content: [{ type: 'text', text: `Task ${id} deleted` }],
       };
     },
   );
 
-  const html = fs.readFileSync(path.join('../client/dist', 'index.html'), 'utf8').trim();
+  const html = fs.readFileSync(path.join(clientDistDir, 'index.html'), 'utf8').trim();
   server.registerResource(
     'chatgpt-app-todo-widget',
     'ui://widget/chatgpt-app-todo.html',
@@ -200,19 +209,40 @@ const createMcpServer = (taskStore) => {
 };
 
 const app = express();
+app.use((req, res, next) => {
+  res.header('Vary', 'Origin');
+  next();
+});
 app.use(
   cors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowAllOrigins || TRUSTED_ORIGINS.includes(origin)) {
+        return callback(null, origin);
+      }
+      return callback(new Error('origin_not_allowed'));
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   }),
 );
+
+app.use((err, _req, res, next) => {
+  if (err?.message === 'origin_not_allowed') {
+    return res.status(403).json({ error: 'origin_not_allowed' });
+  }
+  return next(err);
+});
+
 app.use(express.json());
 
-const guarded = (handler) =>
-  ENABLE_AUTH_GATE ? [requireSession, handler] : [handler];
+const guarded = (handler) => (ENABLE_AUTH_GATE ? [requireSession, handler] : [handler]);
 
 app.get('/tasks', ...guarded((req, res) => {
-  res.json(resolveTasks(req));
+  res.json(resolveTaskStore(req));
 }));
 
 app.post('/tasks', ...guarded((req, res) => {
@@ -220,14 +250,14 @@ app.post('/tasks', ...guarded((req, res) => {
   if (!text) {
     return res.status(400).json({ error: 'Task text is required' });
   }
-  const taskStore = resolveTasks(req);
+  const taskStore = resolveTaskStore(req);
   const newTask = { id: Date.now(), text, completed: false };
   taskStore.push(newTask);
   res.json(newTask);
 }));
 
 app.post('/tasks/:id/complete', ...guarded((req, res) => {
-  const taskStore = resolveTasks(req);
+  const taskStore = resolveTaskStore(req);
   const task = taskStore.find((item) => item.id === Number(req.params.id));
   if (task) {
     task.completed = true;
@@ -235,16 +265,35 @@ app.post('/tasks/:id/complete', ...guarded((req, res) => {
   res.json(task ?? null);
 }));
 
-const fetchJson = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('metadata_unavailable');
+const fetchJson = async (url, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('metadata_timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
+
+  if (!response.ok) {
+    throw new Error(`metadata_unavailable:${response.status}`);
+  }
+
+  try {
+    return await response.json();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`metadata_parse_error:${message}`);
+  }
 };
 
 const loadProtectedResourceMetadata = async () => {
-  const payload = await fetchJson(AUTH_METADATA_URL);
+  const payload = await fetchMcpMetadata(AUTH_METADATA_URL);
   return shapeProtectedResourceMetadata(payload);
 };
 
@@ -253,7 +302,8 @@ app.get('/mcp-metadata', async (_req, res) => {
     const metadata = await loadProtectedResourceMetadata();
     res.json(metadata);
   } catch (error) {
-    console.error('Failed to read MCP metadata', error);
+    const message = error instanceof Error ? error.message : error;
+    console.error('Failed to read MCP metadata:', message);
     res.status(502).json({ error: 'metadata_unavailable' });
   }
 });
@@ -263,7 +313,8 @@ app.get('/.well-known/oauth-protected-resource', async (_req, res) => {
     const metadata = await loadProtectedResourceMetadata();
     res.json(metadata);
   } catch (error) {
-    console.error('Failed to expose protected resource metadata', error);
+    const message = error instanceof Error ? error.message : error;
+    console.error('Failed to expose protected resource metadata:', message);
     res.status(502).json({ error: 'metadata_unavailable' });
   }
 });
@@ -273,13 +324,14 @@ app.get('/.well-known/oauth-authorization-server', async (_req, res) => {
     const metadata = await fetchJson(AUTH_DISCOVERY_URL);
     res.json(metadata);
   } catch (error) {
-    console.error('Failed to expose discovery metadata', error);
+    const message = error instanceof Error ? error.message : error;
+    console.error('Failed to expose discovery metadata:', message);
     res.status(502).json({ error: 'metadata_unavailable' });
   }
 });
 
 app.post('/mcp', ...guarded(async (req, res) => {
-  const taskStore = resolveTasks(req);
+  const taskStore = resolveTaskStore(req);
   const server = createMcpServer(taskStore);
 
   const transport = new StreamableHTTPServerTransport({
@@ -295,7 +347,7 @@ app.post('/mcp', ...guarded(async (req, res) => {
   await transport.handleRequest(req, res, req.body);
 }));
 
-app.use(express.static('../client/dist'));
+app.use(express.static(clientDistDir));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

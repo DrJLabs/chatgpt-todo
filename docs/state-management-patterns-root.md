@@ -7,9 +7,9 @@
 - All writes (add/complete) trigger a refetch from the Express API; no optimistic caching layer.
 
 ## Server-Side State
-- Tasks are kept in an in-memory array (`let tasks = []`) in `server/index.js`.
-- All REST/MCP endpoints mutate the array directly; there is no session or per-user state yet.
-- Planned Better Auth integration will introduce per-user storage, requiring a data layer refactor.
+- Tasks are kept in in-memory stores within `server/index.js`: per-user arrays when `ENABLE_AUTH_GATE=true`, or a legacy shared array when the flag is disabled for rollback.
+- All REST/MCP endpoints mutate those arrays directly; persistence is still pending, so data is lost on restart.
+- A future data layer should externalize storage while keeping the Better Auth feature flag as an emergency bypass.
 
 ## Recommendations
 1. Introduce client-side state segregation (e.g., custom hooks or context) once the UI grows beyond a single page.

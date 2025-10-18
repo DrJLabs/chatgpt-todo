@@ -6,12 +6,14 @@ chatgpt-todo-app/
 │   ├── index.html              # Root HTML; Tailwind + React entry
 │   ├── package.json            # Frontend dependencies (React 19, Vite 7, Tailwind)
 │   ├── src/                    # Application source
-│   │   ├── App.jsx             # Main UI component (task dashboard)
+│   │   ├── App.jsx             # Main UI component (task dashboard + AuthGate wiring)
+│   │   ├── components/         # AuthGate, SignInWithGoogle button, shared UI pieces
+│   │   ├── lib/api.js          # Env-driven fetch helper with credentials included
 │   │   ├── main.jsx            # React entry point, renders <App />
 │   │   ├── index.css           # Tailwind import (utility classes only)
 │   │   ├── useOpenAiGlobal.js  # Custom hook subscribing to MCP globals
 │   │   └── assets/             # Static assets (react.svg placeholder)
-│   ├── vite.config.js          # Vite config; base URL set to ngrok endpoint
+│   ├── vite.config.js          # Vite config; base URL driven by VITE_CLIENT_BASE
 │   ├── tailwind.config.js      # Tailwind purge configuration
 │   └── eslint.config.js        # ESLint setup with React hooks and refresh plugins
 ├── server/                     # Express server + MCP tools
@@ -45,4 +47,4 @@ chatgpt-todo-app/
 ## Observations
 - No test directories detected (`__tests__`, `*.test.*` absent).
 - No database/migrations directories; persistence remains in-memory within `server/index.js`.
-- Configuration is minimal and local-focused; introduce environment variables before production deployment.
+- Configuration now uses env-driven URLs and auth gates; persistence and automated deployment remain future work.

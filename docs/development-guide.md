@@ -26,13 +26,18 @@ npm install
   - `VITE_TODO_API_BASE_URL` — Public URL where this todo API is hosted (e.g., `https://todo.onemainarmy.com` or `http://localhost:3000`)
   - Optional `VITE_CLIENT_BASE` to override Vite’s build base path when deploying under a subdirectory
   - Optional `VITE_ENABLE_AUTH_GATE` to temporarily disable the Better Auth gate (`false` reverts to unauthenticated flows)
+    - ⚠️ Disabling the gate reverts to legacy unauthenticated behaviour; use only for short-lived testing or emergency rollback and re-enable immediately afterwards.
 - Copy `server/.env.example` → `server/.env` and configure:
   - `AUTH_BASE_URL` — Better Auth session endpoint (defaults to `https://auth.onemainarmy.com/api/auth`)
   - `AUTH_MCP_METADATA_URL` — MCP discovery metadata endpoint (defaults to `https://auth.onemainarmy.com/mcp`)
   - `TODO_API_BASE_URL` — Public origin serving this todo API (used for documentation/tests)
+  - Optional `TODO_PUBLIC_BASE_URL` to override the `resource` claim returned in MCP metadata (defaults to the production domain)
   - `TRUSTED_ORIGINS` — Comma-separated list of origins allowed by CORS (e.g., `http://localhost:3000,https://todo.onemainarmy.com`)
   - Optional `ENABLE_AUTH_GATE` to bypass server middleware during rollback (`false` disables session enforcement)
+    - ⚠️ When `false`, all REST/MCP endpoints become publicly accessible; flip back to `true` as soon as the incident is resolved.
   - Optional `PORT` if you need the Express server to listen on a non-default port
+
+- Better Auth relies on cross-origin cookies. Include both the todo domain and the auth domain in `TRUSTED_ORIGINS`, configure fetch calls with `credentials: 'include'`, and in production ensure cookies are issued with `SameSite=None; Secure` (the Better Auth server already handles this when served over HTTPS).
 
 ## Build & Run
 ```bash

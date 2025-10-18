@@ -7,8 +7,8 @@
   },
   "mode": "initial_scan",
   "scan_level": "exhaustive",
-  "project_root": "/home/drj/projects/chatgpt-todo-app",
-  "output_folder": "/home/drj/projects/chatgpt-todo-app/docs",
+  "project_root": "<repo_root>",
+  "output_folder": "<repo_root>/docs",
   "completed_steps": [
     {
       "step": "step_1",
@@ -200,12 +200,12 @@
       "requires_hardware_docs": false,
       "requires_asset_inventory": false
     },
-    "api_summary": "Server exposes 3 REST endpoints and 3 MCP tools; no auth layer implemented yet",
-    "ui_components": "2 top-level components (App, useOpenAiGlobal); Tailwind utilities for styling; no dedicated design system",
-    "data_models": "Tasks persisted in-memory only (let tasks = []); future work to add DB per Better Auth user",
-    "state_management": "Client relies on React useState/useEffect + custom MCP hook; server keeps tasks in memory awaiting Better Auth integration",
-    "deployment": "Local-only setup (npm start) with Vite base pointing to ngrok URL; no persistence, env vars, or CI/CD yet",
-    "configuration": "Hard-coded dev URLs, Tailwind utility setup, no auth or CI yet; entry points limited to App/main and Express server",
+    "api_summary": "Server exposes 3 REST endpoints and 3 MCP tools; Better Auth session enforcement enabled when ENABLE_AUTH_GATE is true",
+    "ui_components": "Core components: App shell, AuthGate, SignInWithGoogle, useOpenAiGlobal hook; styling via Tailwind utilities",
+    "data_models": "Tasks persisted in memory; per-user arrays when auth gate is enabled, legacy shared array otherwise—future work adds persistent storage",
+    "state_management": "Client relies on React hooks + MCP helper; server keeps per-user in-memory tasks when auth gate is enabled, legacy global array when disabled",
+    "deployment": "Local dev supported; env-driven AUTH/TODO API base URLs; no persistence or CI/CD yet",
+    "configuration": "Env-driven URLs (VITE_*, ENABLE_AUTH_GATE, TRUSTED_ORIGINS); Tailwind utilities; auth enforced when enabled",
     "source_tree": "Documented client/src, server/, docs/ structure; highlighted build/workflow integration",
     "development_dirs": "client/,server/",
     "readme_summary": "README outlines MCP architecture, setup, ngrok usage, and feature list; includes build/run instructions.",
@@ -226,11 +226,11 @@
       ],
       "test_commands": "none found",
       "ci_cd": "none",
-      "env": "No .env files committed; endpoints hard-coded to localhost"
+      "env": "Use .env.example templates (client/server) to supply AUTH/TODO base URLs and auth gate toggles"
     },
     "ci_cd": "No .github/workflows/, docker, or infra configs present; manual deployment.",
-    "development_summary": "Node 18+, npm; build client with npm run build; start server npm run dev; no tests or env files yet.",
-    "architecture_summary": "Monolithic React + Express stack documented; persistence/auth pending; deployment manual."
+    "development_summary": "Node 18+, npm; build client with npm run build; start server npm run dev; env templates cover Better Auth configuration.",
+    "architecture_summary": "Monolithic React + Express stack documented; Better Auth guarding in place, persistence still pending; deployment manual."
   },
   "outputs_generated": [
     "project-scan-report.json",

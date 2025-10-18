@@ -13,7 +13,7 @@ There is currently **no production deployment pipeline** or process automation; 
 3. The Express server reads `client/dist/index.html` to register the MCP widget resource.
 
 ### Vite Config Highlights
-- `client/vite.config.js` sets the `base` URL to `https://lignitic-sustentative-kasi.ngrok-free.dev` (ngrok staging endpoint).
+- `client/vite.config.js` reads the `base` URL from `VITE_CLIENT_BASE` (defaults to `'/'`) so builds can target custom prefixes.
 - Plugins: `@vitejs/plugin-react` and `@tailwindcss/vite` for Tailwind integration.
 
 ## Tailwind CSS
@@ -40,10 +40,10 @@ There is currently **no production deployment pipeline** or process automation; 
 - No HTTPS/TLS configuration in code; reverse proxy or hosting platform must handle it.
 
 ## Recommended Next Steps
-1. Introduce environment variable support (Vite `VITE_…` and server `.env`) for API bases and auth endpoints.
+1. Harden environment management (secret storage, production overrides for `VITE_*`, `AUTH_*`, `TRUSTED_ORIGINS`).
 2. Package the application (Docker or PM2) for predictable deployment.
 3. Implement persistence (database) before production launch; update server to externalize task storage.
-4. Configure Better Auth credentials and update fetch calls to use relative paths once auth proxying is in place.
+4. Configure Better Auth credentials and verify cross-origin cookie requirements (`SameSite=None; Secure`) in production domains.
 5. Set up CI (GitHub Actions) to run lint/build and produce artifacts for deployment.
 
 ## Better Auth Rollout Runbook
