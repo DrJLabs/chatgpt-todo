@@ -41,11 +41,11 @@
 ## Implementation Stack
 
 - **Authentication SDK**: `better-auth@1.3.27` React client (`better-auth/react`) pinned via package.json, aligned with official `client.mdx` guidance.
-- **Frontend framework**: Vite 5 + `react@18.3.1` / `react-dom@18.3.1` (existing) with Tailwind-style utility classes already present.
+- **Frontend framework**: Vite 7 + `react@19.1.1` / `react-dom@19.1.1` (existing) with Tailwind-style utility classes already present.
 - **HTTP utilities**: Native `fetch` wrapped in project-level helper; all browser requests set `credentials: 'include'` to comply with Better Auth cookie requirements.
-- **Server runtime**: Node.js `20.12.2` LTS with Express `4.19.2`, relying on built-in `fetch`; fallback to `node-fetch@3.3.2` only if older Node is required.
+- **Server runtime**: Node.js 20+ with Express `5.1.0`, relying on the platform `fetch` implementation.
 - **Environment management**: `dotenv@16.4.5` on the server, Vite `VITE_*` vars on the client; production secrets managed outside repo per `.env.example`.
-- **MCP transport**: `@modelcontextprotocol/sdk@0.5.0` server with `StreamableHTTPServerTransport`, now sitting behind auth middleware.
+- **MCP transport**: `@modelcontextprotocol/sdk@1.19.1` server with `StreamableHTTPServerTransport`, now sitting behind auth middleware.
 
 ---
 

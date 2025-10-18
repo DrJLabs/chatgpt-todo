@@ -1,11 +1,12 @@
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-let cachedMetadata = null;
+const cache = new Map();
 
 export async function fetchMcpMetadata(url, timeoutMs = 10000) {
   const now = Date.now();
-  if (cachedMetadata && now - cachedMetadata.timestamp < CACHE_TTL_MS) {
-    return cachedMetadata.payload;
+  const entry = cache.get(url);
+  if (entry && now - entry.timestamp < CACHE_TTL_MS) {
+    return entry.payload;
   }
 
   const controller = new AbortController();
@@ -35,10 +36,14 @@ export async function fetchMcpMetadata(url, timeoutMs = 10000) {
     throw new Error(`Failed to parse MCP metadata JSON from ${url}: ${message}`);
   }
 
-  cachedMetadata = { timestamp: now, payload };
+  cache.set(url, { timestamp: now, payload });
   return payload;
 }
 
-export function clearMetadataCache() {
-  cachedMetadata = null;
+export function clearMetadataCache(url) {
+  if (url) {
+    cache.delete(url);
+    return;
+  }
+  cache.clear();
 }

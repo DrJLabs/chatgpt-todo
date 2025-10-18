@@ -3,30 +3,36 @@ import { useSyncExternalStore } from "react";
 export const SET_GLOBALS_EVENT_TYPE = "openai:set_globals";
 
 export function useOpenAiGlobal(key) {
-  return useSyncExternalStore(
-    (onChange) => {
-      if (typeof window === "undefined") {
-        return () => {};
+  const subscribe = (onChange) => {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
+
+    const handleSetGlobal = (event) => {
+      const value = event.detail?.globals?.[key];
+      if (value === undefined) {
+        return;
       }
 
-      const handleSetGlobal = (event) => {
-        const value = event.detail.globals[key];
-        if (value === undefined) {
-          return;
-        }
+      onChange();
+    };
 
-        onChange();
-      };
+    window.addEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal, {
+      passive: true,
+    });
 
-      window.addEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal, {
-        passive: true,
-      });
+    return () => {
+      window.removeEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal);
+    };
+  };
 
-      return () => {
-        window.removeEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal);
-      };
-    },
-    () => window.openai?.[key] ?? null,
-    () => window.openai?.[key] ?? null
-  );
+  const getSnapshot = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return window.openai?.[key] ?? null;
+  };
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
 }

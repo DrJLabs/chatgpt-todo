@@ -38,7 +38,8 @@
 Create/update **`client/.env.local`**:
 ```bash
 VITE_AUTH_BASE_URL=https://auth.onemainarmy.com/api/auth
-VITE_PROTECTED_RESOURCE_URL=https://auth.onemainarmy.com/.well-known/oauth-protected-resource
+VITE_MCP_METADATA_URL=https://auth.onemainarmy.com/.well-known/oauth-protected-resource
+VITE_TODO_API_BASE_URL=https://todo.onemainarmy.com
 ```
 
 Install the client SDK (if not present):
@@ -220,7 +221,7 @@ curl -i -H "Cookie: <your-browser-cookie>" https://auth.onemainarmy.com/api/auth
 ---
 
 ## File changes (this repo only)
-- `client/.env.local` **(new)** – sets `VITE_AUTH_BASE_URL`, `VITE_PROTECTED_RESOURCE_URL`
+- `client/.env.local` **(new)** – sets `VITE_AUTH_BASE_URL`, `VITE_MCP_METADATA_URL`, `VITE_TODO_API_BASE_URL`
 - `client/src/auth.ts` **(new)** – bootstraps the Better Auth client
 - `client/src/components/SignInWithGoogle.tsx` **(new)** – Google entrypoint
 - `client/src/lib/session.ts` **(new)** – helper to read session

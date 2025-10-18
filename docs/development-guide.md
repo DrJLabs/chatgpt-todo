@@ -26,7 +26,7 @@ npm install
   - `VITE_TODO_API_BASE_URL` — Public URL where this todo API is hosted (e.g., `https://todo.onemainarmy.com` or `http://localhost:3000`)
   - Optional `VITE_CLIENT_BASE` to override Vite’s build base path when deploying under a subdirectory
   - Optional `VITE_ENABLE_AUTH_GATE` to temporarily disable the Better Auth gate (`false` reverts to unauthenticated flows)
-    - ⚠️ Disabling the gate reverts to legacy unauthenticated behaviour; use only for short-lived testing or emergency rollback and re-enable immediately afterwards.
+    - ⚠️ Disabling the gate reverts to legacy unauthenticated behaviour; use only for short-lived testing or emergency rollback and re-enable immediately afterward.
 - Copy `server/.env.example` → `server/.env` and configure:
   - `AUTH_BASE_URL` — Better Auth session endpoint (defaults to `https://auth.onemainarmy.com/api/auth`)
   - `AUTH_MCP_METADATA_URL` — MCP discovery metadata endpoint (defaults to `https://auth.onemainarmy.com/mcp`)

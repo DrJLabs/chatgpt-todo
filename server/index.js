@@ -41,7 +41,16 @@ const ensureTaskStore = (userId) => {
   return tasksByUser.get(userId);
 };
 
-const resolveTaskStore = (req) => (ENABLE_AUTH_GATE ? ensureTaskStore(req.userId) : sharedTasks);
+const resolveTaskContext = (req) => {
+  if (!ENABLE_AUTH_GATE) {
+    return { userId: null, tasks: sharedTasks };
+  }
+
+  return {
+    userId: req.userId,
+    tasks: ensureTaskStore(req.userId),
+  };
+};
 
 const shapeProtectedResourceMetadata = (metadata) => {
   return {
@@ -242,7 +251,8 @@ app.use(express.json());
 const guarded = (handler) => (ENABLE_AUTH_GATE ? [requireSession, handler] : [handler]);
 
 app.get('/tasks', ...guarded((req, res) => {
-  res.json(resolveTaskStore(req));
+  const { tasks } = resolveTaskContext(req);
+  res.json(tasks);
 }));
 
 app.post('/tasks', ...guarded((req, res) => {
@@ -250,15 +260,15 @@ app.post('/tasks', ...guarded((req, res) => {
   if (!text) {
     return res.status(400).json({ error: 'Task text is required' });
   }
-  const taskStore = resolveTaskStore(req);
+  const { tasks } = resolveTaskContext(req);
   const newTask = { id: Date.now(), text, completed: false };
-  taskStore.push(newTask);
+  tasks.push(newTask);
   res.json(newTask);
 }));
 
 app.post('/tasks/:id/complete', ...guarded((req, res) => {
-  const taskStore = resolveTaskStore(req);
-  const task = taskStore.find((item) => item.id === Number(req.params.id));
+  const { tasks } = resolveTaskContext(req);
+  const task = tasks.find((item) => item.id === Number(req.params.id));
   if (task) {
     task.completed = true;
   }
@@ -331,8 +341,8 @@ app.get('/.well-known/oauth-authorization-server', async (_req, res) => {
 });
 
 app.post('/mcp', ...guarded(async (req, res) => {
-  const taskStore = resolveTaskStore(req);
-  const server = createMcpServer(taskStore);
+  const { tasks } = resolveTaskContext(req);
+  const server = createMcpServer(tasks);
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,

@@ -10,9 +10,7 @@ function TasksApp() {
   const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const toolOutput = typeof window !== "undefined" && window.openai
-    ? useOpenAiGlobal("toolOutput")
-    : null;
+  const toolOutput = useOpenAiGlobal("toolOutput");
 
   const loadTasks = useCallback(async () => {
     setIsLoading(true);
