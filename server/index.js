@@ -297,7 +297,16 @@ const fetchJson = async (url, timeoutMs = 10000) => {
   }
 
   if (!response.ok) {
-    throw new Error(`metadata_unavailable:${response.status}`);
+    let errorBody = '';
+    try {
+      errorBody = await response.text();
+    } catch (readError) {
+      const message = readError instanceof Error ? readError.message : String(readError);
+      console.warn('Failed to read metadata error body:', message);
+    }
+    throw new Error(
+      `metadata_unavailable:${response.status}${errorBody ? ` - ${errorBody}` : ''}`,
+    );
   }
 
   try {

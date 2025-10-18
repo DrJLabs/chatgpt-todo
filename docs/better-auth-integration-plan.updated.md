@@ -2,6 +2,8 @@
 
 **Scope:** This document updates the client-side plan only (the `chatgpt-todo` repo). The central auth server (`better-auth-central`) is already configured and deployed. We **do not** touch its `.env` or runtime settings here.
 
+> ℹ️ **Summary note:** `better-auth-integration-plan.updated.md` in the repo root carries a condensed version of this guide. Keep both files in sync when workflows change.
+
 ---
 
 ## What changes now (Best answer)
@@ -92,13 +94,22 @@ Add a Google sign‑in button (link starts the flow on the central server):
 
 Create **`client/src/components/SignInWithGoogle.tsx`**:
 ```tsx
+import { signIn } from "../auth";
+
 export function SignInWithGoogle() {
-  const href =
-    "https://auth.onemainarmy.com/api/auth/sign-in/social?provider=google";
   return (
-    <a href={href} className="btn">
+    <button
+      type="button"
+      className="btn"
+      onClick={() =>
+        signIn.social({
+          provider: "google",
+          fetchOptions: { credentials: "include" },
+        })
+      }
+    >
       Sign in with Google
-    </a>
+    </button>
   );
 }
 ```
@@ -107,10 +118,10 @@ Add a minimal session fetch utility for the UI (so the client knows who is signe
 ```ts
 // client/src/lib/session.ts
 export async function fetchSession() {
-  const r = await fetch(
-    "https://auth.onemainarmy.com/api/auth/session",
-    { credentials: "include" }
-  );
+  const base = import.meta.env.VITE_AUTH_BASE_URL;
+  const r = await fetch(`${base}/session`, {
+    credentials: "include",
+  });
   if (!r.ok) return null;
   return r.json();
 }
@@ -158,10 +169,10 @@ Create **`server/session.js`** (or `.ts`):
 ```js
 export async function requireSession(req, res, next) {
   try {
-    const r = await fetch(
-      "https://auth.onemainarmy.com/api/auth/session",
-      { headers: { cookie: req.headers.cookie ?? "" } }
-    );
+    const baseUrl = process.env.AUTH_BASE_URL || 'https://auth.onemainarmy.com/api/auth';
+    const r = await fetch(`${baseUrl.replace(/\/$/, '')}/session`, {
+      headers: { cookie: req.headers.cookie ?? "" },
+    });
     if (!r.ok) return res.status(401).json({ error: "unauthenticated" });
     req.session = await r.json();
     next();
