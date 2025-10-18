@@ -34,24 +34,27 @@
    - Add `better-auth` (for shared helpers) and, if preferred, `better-fetch` for typed API calls.
 2. **Session verification middleware**
    - Create a module (e.g., `server/session.js`) that:
-     - Forwards incoming request cookies to `${process.env.AUTH_BASE_URL}/session` (or equivalent) using `fetch` with `credentials: 'include'`.
+     - Forwards incoming request cookies to `${process.env.AUTH_BASE_URL}/session` (or equivalent) using `fetch` plus an explicit `cookie` header.
      - Alternatively reuses `auth.api.getSession` once we expose the central instance through a lightweight proxy module.
      - Caches successful session lookups per request to avoid duplicate round-trips.
-   - Apply middleware to REST endpoints (`/tasks`, `/tasks/:id/complete`) and inside MCP tool handlers so each tool call checks `session.user`.
+    - Apply middleware to REST endpoints (`/tasks`, `/tasks/:id/complete`) and inside MCP tool handlers so each tool call checks `session.user`.
+    - Guard the upstream request with an `AbortController` (5s timeout) and sanitise logging so sensitive data is not printed.
 3. **Per-user task storage**
-   - Replace the global `tasks` array with a user-scoped store that reuses the SQLite database the central Better Auth instance already maintains:
-     - Instead of provisioning a second database file, point the todo service at the existing connection string (shared `.env` variable) and add a `tasks` table keyed by `userId`.
-     - Wrap reads/writes behind a `TaskRepository` module that loads once on server boot and exposes per-user helpers (`listTasks(userId)`, `upsertTask(userId, task)`).
-     - Keep repository methods transactional so the schema can migrate alongside the central auth schema (e.g., when moving both to Postgres) without changing application code.
-   - Document migration steps with the auth ops team before altering the shared schema, especially if multiple services will begin reading from the same database file.
-   - Update REST endpoints and MCP structured outputs to respect per-user data.
+   - Guard tasks by Better Auth user ID while preserving a feature-flag fallback:
+     - Default path stores tasks in-memory per user (`ENABLE_AUTH_GATE=true`).
+     - When `ENABLE_AUTH_GATE=false`, revert to legacy global storage and skip auth middleware to facilitate emergency rollback.
+   - Document migration steps with the auth ops team before altering the shared schema if/when persistence is introduced.
+   - Update REST endpoints and MCP structured outputs to respect per-user data when auth is enabled.
 4. **CORS & cookie forwarding**
-   - Adjust Express CORS middleware to `origin: ['http://localhost:3000', /* prod */]`, `credentials: true`.
+   - Replace wildcard headers with an allow-list fed by `TRUSTED_ORIGINS` (`origin(origin, callback)` pattern).
    - Ensure MCP HTTP transport forwards headers (especially cookies) when ChatGPT invokes tools; audit `StreamableHTTPServerTransport` usage.
+   - Return `403 origin_not_allowed` for disallowed origins to aid debugging.
+   - Echo the approved origin and set `Access-Control-Allow-Credentials: true` on every response so Better Auth cookies traverse the browser boundary safely.
 5. **Error handling**
    - Return 401/403 responses when session validation fails; surface actionable errors in MCP tool results.
 6. **Configuration**
    - Introduce environment variables in this repo (`AUTH_BASE_URL` for the server, `VITE_AUTH_BASE_URL` for the Vite client, plus `TODO_API_BASE_URL`) so local/prod URLs are configurable.
+   - Add `TODO_PUBLIC_BASE_URL` when the todo server needs to advertise a different resource identifier in MCP metadata than its REST origin.
 7. **Logging & observability**
    - Log failed validations (without leaking secrets) and include correlation ids from Better Auth responses when available.
 
@@ -66,11 +69,12 @@
    - Add an auth panel showing current user, sign-in methods, and sign-out.
    - Prompt unauthenticated users to sign in before showing or mutating tasks.
 4. **Fetch updates**
-   - Switch REST calls to `fetch('/tasks', { credentials: 'include' })` via relative URLs; rely on the same Express origin to avoid extra preflights.
+   - Switch REST calls to an API helper that prefixes `VITE_TODO_API_BASE_URL` and sets `credentials: 'include'` so Better Auth cookies accompany every request.
    - After tile loads, `useEffect` should gate `fetchTasks` on `session?.user`.
 5. **ChatGPT widget considerations**
    - Confirm the widget can open Better Auth flows (may require rendering sign-in inside `<iframe>` or open a new window). Document fallback (manual sign-in via shared browser tab).
    - Ensure the widget re-fetches session after sign-in events (`authClient.on('session', ...)` or `useSession` hook).
+   - Provide `VITE_ENABLE_AUTH_GATE=false` guidance for demos lacking OAuth access.
 
 ## Phase 4 – Security & Compliance
 - Enforce HTTPS when moving beyond localhost; update `AUTH_BASE_URL` accordingly and enable secure cookies.
@@ -89,7 +93,10 @@
    - Document new environment variables.
    - Prepare rollout checklist (including Better Auth server config changes).
 4. **Monitoring**
-   - Define minimal metrics (failed validations, sign-in success rate) and where to surface them (logs/Dashboard).
+   - Define minimal metrics (auth session success rate, MCP 401/403, task latency) and surface via dashboards/alerts tracked by the platform team.
+   - Capture structured logs with anonymised `userId`, `route`, and `authState` fields for incident triage.
+5. **Rollback flag**
+   - Document `ENABLE_AUTH_GATE` / `VITE_ENABLE_AUTH_GATE` usage in README and deployment guide so operators can disable Better Auth enforcement without redeploying.
 
 ## Open Questions & Follow-ups
 - Does the central Better Auth server expose a REST session introspection endpoint, or should this service host a thin proxy that imports the shared config?

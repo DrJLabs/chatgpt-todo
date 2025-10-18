@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+.auth-card {
+  @apply mx-auto mt-24 flex max-w-md flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-center shadow;
+}
+
+.auth-heading {
+  @apply text-xl font-semibold text-gray-900;
+}
+
+.auth-supporting {
+  @apply text-sm text-gray-600;
+}
+
+.auth-button {
+  @apply inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.auth-button--muted {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+}
+
+.auth-error {
+  @apply text-sm text-red-600;
+}
+
+.auth-shell {
+  @apply flex flex-col gap-6;
+}
+
+.auth-shell__header {
+  @apply flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow;
+}
+
+.auth-shell__welcome {
+  @apply text-sm font-medium text-gray-700;
+}
+
+.auth-shell__identity {
+  @apply text-xs text-gray-500;
+}
+
+.auth-shell__content {
+  @apply flex-1;
+}

@@ -2,6 +2,8 @@
 
 **Scope:** This document updates the client-side plan only (the `chatgpt-todo` repo). The central auth server (`better-auth-central`) is already configured and deployed. We **do not** touch its `.env` or runtime settings here.
 
+> ℹ️ **Canonical reference:** This summary mirrors `docs/better-auth-integration-plan.updated.md`. Treat that file as the long-form source of truth; update both when workflows change.
+
 ---
 
 ## What changes now (Best answer)
@@ -38,7 +40,8 @@
 Create/update **`client/.env.local`**:
 ```bash
 VITE_AUTH_BASE_URL=https://auth.onemainarmy.com/api/auth
-VITE_PROTECTED_RESOURCE_URL=https://auth.onemainarmy.com/.well-known/oauth-protected-resource
+VITE_MCP_METADATA_URL=https://auth.onemainarmy.com/.well-known/oauth-protected-resource
+VITE_TODO_API_BASE_URL=https://todo.onemainarmy.com
 ```
 
 Install the client SDK (if not present):
@@ -63,10 +66,6 @@ import { createAuthClient } from "better-auth/react";
 export const auth = createAuthClient({
   baseURL: import.meta.env.VITE_AUTH_BASE_URL!,
 });
-
-// Optional: expose PRM URL for any consumers that need metadata discovery
-export const PROTECTED_RESOURCE_URL =
-  import.meta.env.VITE_PROTECTED_RESOURCE_URL!;
 ```
 
 Integrate in your app (example):
@@ -93,13 +92,22 @@ Add a Google sign‑in button (link starts the flow on the central server):
 
 Create **`client/src/components/SignInWithGoogle.tsx`**:
 ```tsx
+import { signIn } from "../auth";
+
 export function SignInWithGoogle() {
-  const href =
-    "https://auth.onemainarmy.com/api/auth/sign-in/social?provider=google";
   return (
-    <a href={href} className="btn" rel="opener">
+    <button
+      type="button"
+      className="btn"
+      onClick={() =>
+        signIn.social({
+          provider: "google",
+          fetchOptions: { credentials: "include" },
+        })
+      }
+    >
       Sign in with Google
-    </a>
+    </button>
   );
 }
 ```
@@ -108,10 +116,10 @@ Add a minimal session fetch utility for the UI (so the client knows who is signe
 ```ts
 // client/src/lib/session.ts
 export async function fetchSession() {
-  const r = await fetch(
-    "https://auth.onemainarmy.com/api/auth/session",
-    { credentials: "include" }
-  );
+  const base = import.meta.env.VITE_AUTH_BASE_URL;
+  const r = await fetch(`${base}/session`, {
+    credentials: "include",
+  });
   if (!r.ok) return null;
   return r.json();
 }
@@ -157,10 +165,10 @@ Create **`server/session.js`** (or `.ts`):
 ```js
 export async function requireSession(req, res, next) {
   try {
-    const r = await fetch(
-      "https://auth.onemainarmy.com/api/auth/session",
-      { headers: { cookie: req.headers.cookie ?? "" }, credentials: "include" }
-    );
+    const baseUrl = process.env.AUTH_BASE_URL || 'https://auth.onemainarmy.com/api/auth';
+    const r = await fetch(`${baseUrl.replace(/\/$/, '')}/session`, {
+      headers: { cookie: req.headers.cookie ?? "" },
+    });
     if (!r.ok) return res.status(401).json({ error: "unauthenticated" });
     req.session = await r.json();
     next();
@@ -216,13 +224,13 @@ curl -i -H "Cookie: <your-browser-cookie>" https://auth.onemainarmy.com/api/auth
 ---
 
 ## File changes (this repo only)
-- `client/.env.local` **(new)** – sets `VITE_AUTH_BASE_URL`, `VITE_PROTECTED_RESOURCE_URL`
+- `client/.env.local` **(new)** – sets `VITE_AUTH_BASE_URL`, `VITE_MCP_METADATA_URL`, `VITE_TODO_API_BASE_URL`
 - `client/src/auth.ts` **(new)** – bootstraps the Better Auth client
 - `client/src/components/SignInWithGoogle.tsx` **(new)** – Google entrypoint
 - `client/src/lib/session.ts` **(new)** – helper to read session
 - `server/session.js` **(new)** – Express middleware to enforce auth
 - `server/index.js` **(edit)** – apply `requireSession` to protected routes
-- `docs/better-auth-integration-plan.md` **(this file)** – updated to point to `https://auth.onemainarmy.com` and document PRM + flows
+- `docs/better-auth-integration-plan.updated.md` **(this file)** – updated to point to `https://auth.onemainarmy.com` and document PRM + flows
 
 ---
 
