@@ -94,7 +94,7 @@ export function SignInWithGoogle() {
   const href =
     "https://auth.onemainarmy.com/api/auth/sign-in/social?provider=google";
   return (
-    <a href={href} className="btn" rel="opener">
+    <a href={href} className="btn">
       Sign in with Google
     </a>
   );
@@ -156,7 +156,7 @@ export async function requireSession(req, res, next) {
   try {
     const r = await fetch(
       "https://auth.onemainarmy.com/api/auth/session",
-      { headers: { cookie: req.headers.cookie ?? "" }, credentials: "include" }
+      { headers: { cookie: req.headers.cookie ?? "" } }
     );
     if (!r.ok) return res.status(401).json({ error: "unauthenticated" });
     req.session = await r.json();
@@ -219,7 +219,7 @@ curl -i -H "Cookie: <your-browser-cookie>" https://auth.onemainarmy.com/api/auth
 - `client/src/lib/session.ts` **(new)** – helper to read session
 - `server/session.js` **(new)** – Express middleware to enforce auth
 - `server/index.js` **(edit)** – apply `requireSession` to protected routes
-- `docs/better-auth-integration-plan.md` **(this file)** – updated to point to `https://auth.onemainarmy.com` and document PRM + flows
+- `docs/better-auth-integration-plan.updated.md` **(this file)** – updated to point to `https://auth.onemainarmy.com` and document PRM + flows
 
 ---
 

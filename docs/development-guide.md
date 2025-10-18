@@ -33,6 +33,7 @@ npm install
   - `TODO_API_BASE_URL` — Public origin serving this todo API (used for documentation/tests)
   - Optional `TODO_PUBLIC_BASE_URL` to override the `resource` claim returned in MCP metadata (defaults to the production domain)
   - `TRUSTED_ORIGINS` — Comma-separated list of origins allowed by CORS (e.g., `http://localhost:3000,https://todo.onemainarmy.com`)
+    - This value is required; the server will exit during startup if the list is empty while credentialed requests are enabled.
   - Optional `ENABLE_AUTH_GATE` to bypass server middleware during rollback (`false` disables session enforcement)
     - ⚠️ When `false`, all REST/MCP endpoints become publicly accessible; flip back to `true` as soon as the incident is resolved.
   - Optional `PORT` if you need the Express server to listen on a non-default port

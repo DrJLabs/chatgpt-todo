@@ -27,7 +27,13 @@ const TRUSTED_ORIGINS = (process.env.TRUSTED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const allowAllOrigins = TRUSTED_ORIGINS.length === 0;
+
+if (TRUSTED_ORIGINS.length === 0) {
+  console.error(
+    'FATAL: TRUSTED_ORIGINS must be set to a comma-separated list when credentials are enabled.',
+  );
+  process.exit(1);
+}
 
 const clientDistDir = path.resolve(__dirname, '../client/dist');
 
@@ -228,7 +234,7 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
-      if (allowAllOrigins || TRUSTED_ORIGINS.includes(origin)) {
+      if (TRUSTED_ORIGINS.includes(origin)) {
         return callback(null, origin);
       }
       return callback(new Error('origin_not_allowed'));

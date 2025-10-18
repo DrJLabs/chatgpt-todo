@@ -170,17 +170,21 @@
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  if (TRUSTED_ORIGINS.length === 0) {
+    throw new Error('TRUSTED_ORIGINS must be configured for credentialed requests');
+  }
+
   app.use(cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (TRUSTED_ORIGINS.length === 0 || TRUSTED_ORIGINS.includes(origin)) {
+      if (TRUSTED_ORIGINS.includes(origin)) {
         return callback(null, origin);
       }
       return callback(new Error('origin_not_allowed'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   }));
   ```
 - Remove wildcard headers; ensure `Access-Control-Allow-Origin` echoes request origin when allowed and `Access-Control-Allow-Credentials: true`.
