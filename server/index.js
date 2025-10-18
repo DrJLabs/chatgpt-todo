@@ -17,6 +17,11 @@ const ENABLE_AUTH_GATE = (process.env.ENABLE_AUTH_GATE ?? 'true') !== 'false';
 const AUTH_METADATA_URL =
   process.env.AUTH_METADATA_URL ||
   'https://auth.onemainarmy.com/.well-known/oauth-protected-resource';
+const AUTH_DISCOVERY_URL =
+  process.env.AUTH_DISCOVERY_URL ||
+  'https://auth.onemainarmy.com/.well-known/oauth-authorization-server';
+const TODO_PUBLIC_BASE_URL =
+  process.env.TODO_PUBLIC_BASE_URL || 'https://todo.onemainarmy.com';
 
 const sharedTasks = [];
 const tasksByUser = new Map();
@@ -33,6 +38,13 @@ const resolveTasks = (req) => {
     return sharedTasks;
   }
   return ensureTaskStore(req.userId);
+};
+
+const shapeProtectedResourceMetadata = (metadata) => {
+  return {
+    ...metadata,
+    resource: TODO_PUBLIC_BASE_URL,
+  };
 };
 
 const createMcpServer = (taskStore) => {
@@ -223,16 +235,45 @@ app.post('/tasks/:id/complete', ...guarded((req, res) => {
   res.json(task ?? null);
 }));
 
+const fetchJson = async (url) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('metadata_unavailable');
+  }
+  return response.json();
+};
+
+const loadProtectedResourceMetadata = async () => {
+  const payload = await fetchJson(AUTH_METADATA_URL);
+  return shapeProtectedResourceMetadata(payload);
+};
+
 app.get('/mcp-metadata', async (_req, res) => {
   try {
-    const response = await fetch(AUTH_METADATA_URL);
-    if (!response.ok) {
-      return res.status(502).json({ error: 'metadata_unavailable' });
-    }
-    const metadata = await response.json();
+    const metadata = await loadProtectedResourceMetadata();
     res.json(metadata);
   } catch (error) {
     console.error('Failed to read MCP metadata', error);
+    res.status(502).json({ error: 'metadata_unavailable' });
+  }
+});
+
+app.get('/.well-known/oauth-protected-resource', async (_req, res) => {
+  try {
+    const metadata = await loadProtectedResourceMetadata();
+    res.json(metadata);
+  } catch (error) {
+    console.error('Failed to expose protected resource metadata', error);
+    res.status(502).json({ error: 'metadata_unavailable' });
+  }
+});
+
+app.get('/.well-known/oauth-authorization-server', async (_req, res) => {
+  try {
+    const metadata = await fetchJson(AUTH_DISCOVERY_URL);
+    res.json(metadata);
+  } catch (error) {
+    console.error('Failed to expose discovery metadata', error);
     res.status(502).json({ error: 'metadata_unavailable' });
   }
 });
